@@ -271,7 +271,24 @@ $reviewerSchema = Join-Path $runtime "reviewer.schema.json"
   "additionalProperties": false
 }
 '@ | Set-Content $reviewerSchema -Encoding UTF8
+# Windows PowerShell may emit a UTF-8 BOM.
+# Codex output-schema expects clean JSON, so normalize schemas to UTF-8 without BOM.
 
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+
+foreach ($schemaFile in @(
+    $builderSchema,
+    $qaSchema,
+    $reviewerSchema
+)) {
+    $schemaText = Get-Content $schemaFile -Raw
+
+    [System.IO.File]::WriteAllText(
+        $schemaFile,
+        $schemaText,
+        $utf8NoBom
+    )
+}
 # ------------------------------------------------------------
 # 3. BUILDER AGENT
 # ------------------------------------------------------------
