@@ -1,0 +1,62 @@
+name: QA Regression
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    name: Functional + Visual Regression
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    env:
+      CI: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install chromium
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run Playwright regression
+        run: npx playwright test
+
+      - name: Upload HTML QA report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: qa-html-report
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Upload screenshots, video and traces
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: qa-evidence
+          path: test-results/
+          retention-days: 30
