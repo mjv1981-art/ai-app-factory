@@ -182,3 +182,7 @@
     border-right-color: var(--border);
   }
 }
+/* INTENTIONAL REGRESSION TEST — DO NOT MERGE */
+#center {
+  padding: 120px !important;
+}
