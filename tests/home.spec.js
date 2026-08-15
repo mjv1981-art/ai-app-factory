@@ -20,6 +20,9 @@ test('REG-001 - home page loads correctly', async ({ page }) => {
 
     await counter.click();
     await expect(counter).toContainText('Count is 4');
+
+    await counter.click({ modifiers: ['Shift'] });
+    await expect(counter).toContainText('Count is 0');
   });
 
   await test.step('Verify visual regression', async () => {

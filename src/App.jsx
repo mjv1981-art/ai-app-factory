@@ -24,7 +24,9 @@ function App() {
         <button
           type="button"
           className="counter"
-          onClick={() => setCount((count) => count + 2)}
+          onClick={(event) =>
+            setCount((count) => (event.shiftKey ? 0 : count + 2))
+          }
         >
           Count is {count}
         </button>
