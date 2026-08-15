@@ -71,7 +71,9 @@ foreach ($command in @("git", "gh", "codex", "npm.cmd", "npx.cmd")) {
     }
 }
 
-$repo = (& git rev-parse --show-toplevel 2>$null).Trim()
+$repo = [System.IO.Path]::GetFullPath(
+    (& git rev-parse --show-toplevel 2>$null).Trim()
+)
 
 if (-not $repo) {
     Stop-Factory "This command must be run inside a Git repository."
@@ -95,16 +97,20 @@ if (-not (Test-Path $Contract)) {
     Stop-Factory "Change Contract not found: $Contract"
 }
 
-$contractFull = (Resolve-Path $Contract).Path
+$contractFull = [System.IO.Path]::GetFullPath(
+    (Resolve-Path $Contract).Path
+)
+
+$repoPrefix = $repo + [System.IO.Path]::DirectorySeparatorChar
 
 if (-not $contractFull.StartsWith(
-    $repo,
+    $repoPrefix,
     [System.StringComparison]::OrdinalIgnoreCase
 )) {
     Stop-Factory "The Change Contract must be inside this repository."
 }
 
-$contractRel = $contractFull.Substring($repo.Length).TrimStart("\").Replace("\", "/")
+$contractRel = $contractFull.Substring($repoPrefix.Length).Replace("\", "/")
 
 # Ensure main is current relative to GitHub.
 & git fetch origin main --quiet
