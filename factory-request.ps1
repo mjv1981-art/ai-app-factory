@@ -206,12 +206,22 @@ Important principles:
 Return only the required structured result.
 "@
 
+# Windows PowerShell can split multiline strings when invoking native executables.
+# Normalize the Planner prompt to one CLI argument.
+
+$promptArg = (
+    $prompt `
+        -replace "`r`n", " " `
+        -replace "`n", " " `
+        -replace "\s+", " "
+).Trim()
+
 & codex exec `
     --ephemeral `
     --sandbox read-only `
     --output-schema $schema `
     --output-last-message $output `
-    $prompt
+    $promptArg
 
 if ($LASTEXITCODE -ne 0) {
     Stop-Planner "Planner Agent failed."
