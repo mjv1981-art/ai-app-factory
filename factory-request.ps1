@@ -152,10 +152,10 @@ if ($existingIds.Count -eq 0) {
     $nextNumber = 1
 }
 else {
-    $nextNumber = (($existingIds | Measure-Object -Maximum).Maximum + 1)
+ $nextNumber = [int](($existingIds | Measure-Object -Maximum).Maximum) + 1
 }
 
-$nextId = "CHANGE-{0:D3}" -f $nextNumber
+$nextId = "CHANGE-" + ([int]$nextNumber).ToString("D3")
 
 # ------------------------------------------------------------
 # Planner Agent
