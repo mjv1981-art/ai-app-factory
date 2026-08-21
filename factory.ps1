@@ -24,12 +24,12 @@ function Invoke-CodexAgent {
         [string]$Prompt
     )
 
-    & codex exec `
+    $Prompt | & codex exec `
         --ephemeral `
         --sandbox $Sandbox `
         --output-schema $SchemaPath `
         --output-last-message $OutputPath `
-        $Prompt
+        -
 
     if ($LASTEXITCODE -ne 0) {
         Stop-Factory "Codex agent execution failed."
@@ -54,6 +54,72 @@ function Get-ChangedFiles {
     Where-Object { $_ -and $_.Trim() -ne "" } |
     ForEach-Object { $_.Replace("\", "/") } |
     Sort-Object -Unique
+}
+
+function Get-VisualAuthorization {
+    param([string]$ContractPath)
+
+    $lines = @(Get-Content -LiteralPath $ContractPath)
+    $authHeading = "## Baseline changes authorized?"
+    $filesHeading = "## Authorized baseline files"
+    $authIndex = [Array]::IndexOf($lines, $authHeading)
+    $filesIndex = [Array]::IndexOf($lines, $filesHeading)
+
+    if ($authIndex -lt 0 -or $filesIndex -lt 0 -or $filesIndex -le $authIndex) {
+        Stop-Factory "Change Contract is missing the required visual authorization sections."
+    }
+
+    $authorization = $null
+    for ($i = $authIndex + 1; $i -lt $filesIndex; $i++) {
+        $value = $lines[$i].Trim()
+        if ($value) {
+            $authorization = $value
+            break
+        }
+    }
+
+    if ($authorization -notin @("YES", "NO")) {
+        Stop-Factory "Baseline authorization must be exactly YES or NO."
+    }
+
+    $paths = @()
+    for ($i = $filesIndex + 1; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
+        if ($line -match '^##\s+') {
+            break
+        }
+        if ($line -match '^\s*-\s+`([^`]+)`\s*$') {
+            $path = $Matches[1].Replace("\", "/")
+            if ($path -notmatch '^tests/.+-snapshots/.+\.png$' -or
+                $path.StartsWith("/") -or $path -match '(^|/)\.\.(/|$)') {
+                Stop-Factory "Invalid authorized baseline path: $path"
+            }
+            $paths += $path
+        }
+    }
+
+    $paths = @($paths | Sort-Object -Unique)
+    if ($authorization -eq "YES" -and $paths.Count -eq 0) {
+        Stop-Factory "Baseline authorization is YES but no exact baseline path is listed."
+    }
+    if ($authorization -eq "NO" -and $paths.Count -gt 0) {
+        Stop-Factory "Baseline authorization is NO but baseline paths are listed."
+    }
+
+    return [PSCustomObject]@{
+        Authorized = ($authorization -eq "YES")
+        Paths = $paths
+    }
+}
+
+function Get-ChangedSnapshotFiles {
+    $snapshotPathspec = ":(glob)**/*-snapshots/*.png"
+    $tracked = @(git diff --name-only main -- $snapshotPathspec)
+    $untracked = @(git ls-files --others --exclude-standard -- $snapshotPathspec)
+    return @($tracked + $untracked) |
+        Where-Object { $_ -and $_.Trim() } |
+        ForEach-Object { $_.Replace("\", "/") } |
+        Sort-Object -Unique
 }
 
 # ------------------------------------------------------------
@@ -111,6 +177,7 @@ if (-not $contractFull.StartsWith(
 }
 
 $contractRel = $contractFull.Substring($repoPrefix.Length).Replace("\", "/")
+$visualAuthorization = Get-VisualAuthorization -ContractPath $contractFull
 
 # Ensure main is current relative to GitHub.
 & git fetch origin main --quiet
@@ -383,7 +450,8 @@ Write-Host ""
 Write-Host "2/5  Deterministic QA" -ForegroundColor Cyan
 
 $buildLog = Join-Path $runtime "build.log"
-$testLog = Join-Path $runtime "playwright.log"
+$functionalLog = Join-Path $runtime "functional.log"
+$visualLog = Join-Path $runtime "visual.log"
 
 $oldCI = $env:CI
 $env:CI = "true"
@@ -392,15 +460,90 @@ try {
     & npm.cmd run build *> $buildLog
     $buildExit = $LASTEXITCODE
 
-    & npx.cmd playwright test *> $testLog
-    $testExit = $LASTEXITCODE
+    & npx.cmd playwright test --grep-invert "@visual" *> $functionalLog
+    $functionalExit = $LASTEXITCODE
+
+    & npx.cmd playwright test --grep "@visual" *> $visualLog
+    $visualExit = $LASTEXITCODE
 }
 finally {
     $env:CI = $oldCI
 }
 
 Write-Host "Build exit code:      $buildExit"
-Write-Host "Playwright exit code: $testExit"
+Write-Host "Functional exit code: $functionalExit"
+Write-Host "Visual exit code:     $visualExit"
+
+$visualApprovalOccurred = $false
+$afterApprovalExit = $null
+
+if ($buildExit -eq 0 -and $functionalExit -eq 0 -and
+    $visualExit -ne 0 -and $visualAuthorization.Authorized) {
+    Write-Host ""
+    Write-Host "VISUAL CHANGE DETECTED" -ForegroundColor Yellow
+    Write-Host "The approved Change Contract authorizes only:" -ForegroundColor Yellow
+    $visualAuthorization.Paths | ForEach-Object { Write-Host " - $_" }
+    Write-Host ""
+    Write-Host "Opening the Playwright HTML report for Actual / Expected / Diff / Side by side review."
+
+    $reportPath = Join-Path $repo "playwright-report"
+    Start-Process -FilePath "npx.cmd" `
+        -ArgumentList @("playwright", "show-report", $reportPath)
+
+    $approval = Read-Host "Type APPROVE to accept this visual change"
+    if ($approval -cne "APPROVE") {
+        Stop-Factory "Human visual approval was not granted. No snapshots were updated."
+    }
+
+    $promotionLog = Join-Path $runtime "baseline-promotion.log"
+    & npx.cmd playwright test --grep "@visual" --update-snapshots *> $promotionLog
+    $promotionExit = $LASTEXITCODE
+    if ($promotionExit -ne 0) {
+        Stop-Factory "Visual baseline promotion failed. Inspect $promotionLog"
+    }
+
+    $changedSnapshots = @(Get-ChangedSnapshotFiles)
+    $snapshotComparison = @()
+    if ($visualAuthorization.Paths.Count -ne $changedSnapshots.Count) {
+        $snapshotComparison = @("count mismatch")
+    }
+    elseif ($changedSnapshots.Count -gt 0) {
+        $snapshotComparison = @(Compare-Object `
+            -ReferenceObject $visualAuthorization.Paths `
+            -DifferenceObject $changedSnapshots)
+    }
+
+    if ($snapshotComparison) {
+        Write-Host "Authorized baseline files:" -ForegroundColor Yellow
+        $visualAuthorization.Paths | ForEach-Object { Write-Host " - $_" }
+        Write-Host "Changed baseline files:" -ForegroundColor Yellow
+        $changedSnapshots | ForEach-Object { Write-Host " - $_" }
+        Stop-Factory "Changed snapshots do not exactly match the authorized baseline set."
+    }
+
+    $approvalTimestamp = [DateTimeOffset]::Now.ToString("o")
+    $approvalPaths = ($visualAuthorization.Paths | ForEach-Object { "- ``$_``" }) -join "`n"
+    $approvalRecord = @"
+
+## Human visual approval
+
+Status: APPROVED
+
+Timestamp: $approvalTimestamp
+
+Authorized baseline files:
+
+$approvalPaths
+
+The human reviewed Playwright visual evidence before approval.
+"@
+    [System.IO.File]::AppendAllText($contractFull, $approvalRecord, $utf8NoBom)
+    $visualApprovalOccurred = $true
+
+    $afterApprovalLog = Join-Path $runtime "playwright-after-visual-approval.log"
+    & npx.cmd playwright test *> $afterApprovalLog
+    $afterApprovalExit = $LASTEXITCODE
+}
 
 # ------------------------------------------------------------
 # 6. INDEPENDENT QA AGENT
@@ -427,19 +570,27 @@ Independently inspect:
 - existing regression tests;
 - approved visual baselines;
 - .factory-runtime/build.log;
-- .factory-runtime/playwright.log;
+- .factory-runtime/functional.log;
+- .factory-runtime/visual.log;
+- .factory-runtime/playwright-after-visual-approval.log when present;
 - Playwright report/evidence where useful.
 
 Deterministic execution results:
 - npm run build exit code: $buildExit
-- npx playwright test exit code: $testExit
+- functional regression exit code: $functionalExit
+- visual regression exit code before any approval: $visualExit
+- human visual approval occurred: $visualApprovalOccurred
+- post-approval full regression exit code: $afterApprovalExit
 
 Verify:
 - every Change Contract acceptance criterion;
 - every listed regression scenario;
 - no unexplained scope expansion;
 - existing tests were not weakened;
-- golden screenshots were not changed;
+- when no visual approval occurred, golden screenshots were not changed;
+- when visual approval occurred, exactly the contract-authorized baselines changed,
+  no other baseline changed, the full post-approval regression passed, and the
+  recorded Human visual approval is present as authorized evidence;
 - CSS/config/CI/governance were not changed unless explicitly part of the contract;
 - visual regression evidence is consistent with the contract.
 
@@ -463,8 +614,16 @@ if ($buildExit -ne 0) {
     Stop-Factory "Deterministic build failed. QA report: $qaOutput"
 }
 
-if ($testExit -ne 0) {
-    Stop-Factory "Deterministic Playwright regression failed. QA report: $qaOutput"
+if ($functionalExit -ne 0) {
+    Stop-Factory "Deterministic functional regression failed. QA report: $qaOutput"
+}
+
+if ($visualExit -ne 0 -and -not $visualApprovalOccurred) {
+    Stop-Factory "Visual regression failed without human-approved baseline promotion. QA report: $qaOutput"
+}
+
+if ($visualApprovalOccurred -and $afterApprovalExit -ne 0) {
+    Stop-Factory "Post-approval full regression failed. QA report: $qaOutput"
 }
 
 if ($qa.verdict -ne "PASS") {
@@ -489,7 +648,9 @@ Read:
 - $contractRel
 - .factory-runtime/qa.json
 - .factory-runtime/build.log
-- .factory-runtime/playwright.log
+- .factory-runtime/functional.log
+- .factory-runtime/visual.log
+- .factory-runtime/playwright-after-visual-approval.log when present
 
 Independently inspect the complete git diff against main.
 
@@ -498,7 +659,10 @@ Verify:
 - no requested scope was omitted;
 - no unrequested scope was added;
 - tests were not weakened or manipulated;
-- approved golden screenshots were not changed;
+- when no visual approval occurred, golden screenshots were not changed;
+- when visual approval occurred, exactly the contract-authorized baselines changed,
+  no other baseline changed, post-approval full regression passed, and the Change
+  Contract contains the Human visual approval evidence;
 - QA infrastructure and governance were not changed;
 - the evidence is sufficient to create a Pull Request.
 
@@ -509,6 +673,8 @@ Do not merge.
 
 files_to_commit must contain the exact repository-relative paths that should
 be included in the proposed commit, including the Change Contract itself.
+It may include explicitly human-approved snapshot files only when visual approval
+occurred, and must reject any other baseline change.
 
 Return the structured Release Reviewer result.
 "@
@@ -577,6 +743,19 @@ Write-Host "5/5  GitHub Pull Request" -ForegroundColor Cyan
 $heading = (Get-Content $contractFull -First 1).Trim()
 $heading = $heading -replace "^#\s*", ""
 
+$humanVisualApprovalPrSection = ""
+if ($visualApprovalOccurred) {
+    $promotedBaselines = ($visualAuthorization.Paths | ForEach-Object { "- ``$_``" }) -join "`n"
+    $humanVisualApprovalPrSection = @"
+
+## Human Visual Approval
+
+APPROVED
+
+$promotedBaselines
+"@
+}
+
 git commit -m $heading
 
 if ($LASTEXITCODE -ne 0) {
@@ -598,6 +777,7 @@ $prBody = @"
 
 - Build: **PASS**
 - Playwright functional + visual regression: **PASS**
+$humanVisualApprovalPrSection
 
 ## Independent QA
 

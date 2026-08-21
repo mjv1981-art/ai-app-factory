@@ -31,6 +31,16 @@ Do not assume the Builder is correct.
 
 ## Rules
 
+Functional tests must not contain screenshot assertions. Visual screenshot tests
+must include `@visual` in their title. The Builder may add visual tests but may
+never update baselines.
+
+When no human visual approval was recorded, verify that no golden screenshot
+changed. When approval was recorded, treat the Change Contract's `## Human
+visual approval` section as authorization evidence and verify that exactly the
+listed baseline files changed, no other baseline changed, and the post-approval
+full regression passed.
+
 Do not:
 
 - modify application implementation to make QA pass;
