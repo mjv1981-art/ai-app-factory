@@ -11,8 +11,13 @@ test('REG-001 - home page loads correctly', async ({ page }) => {
       page.getByRole('heading', { name: 'Get started' })
     ).toBeVisible();
 
-    const counter = page.getByRole('button');
+    const counter = page.getByRole('button', { name: /Count is \d+/ });
+    const reset = page.getByRole('button', { name: 'Reset', exact: true });
 
+    await expect(counter).toContainText('Count is 0');
+    await expect(reset).toBeVisible();
+
+    await reset.click();
     await expect(counter).toContainText('Count is 0');
 
     await counter.click();
@@ -23,6 +28,13 @@ test('REG-001 - home page loads correctly', async ({ page }) => {
 
     await counter.click({ modifiers: ['Shift'] });
     await expect(counter).toContainText('Count is 0');
+
+    await counter.click();
+    await reset.click();
+    await expect(counter).toContainText('Count is 0');
+
+    await counter.click();
+    await expect(counter).toContainText('Count is 2');
   });
 
   await test.step('Verify visual regression', async () => {

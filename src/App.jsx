@@ -21,15 +21,20 @@ function App() {
             Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
           </p>
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={(event) =>
-            setCount((count) => (event.shiftKey ? 0 : count + 2))
-          }
-        >
-          Count is {count}
-        </button>
+        <div className="counter-controls">
+          <button
+            type="button"
+            className="counter"
+            onClick={(event) =>
+              setCount((count) => (event.shiftKey ? 0 : count + 2))
+            }
+          >
+            Count is {count}
+          </button>
+          <button type="button" className="counter" onClick={() => setCount(0)}>
+            Reset
+          </button>
+        </div>
       </section>
 
       <div className="ticks"></div>
