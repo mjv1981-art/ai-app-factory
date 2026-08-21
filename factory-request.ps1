@@ -196,6 +196,12 @@ Important principles:
 - Identify visual regression scope.
 - Baseline screenshot changes must default to NO unless the human explicitly
   requested a visual change that requires them.
+- Every contract must contain the exact sections `## Baseline changes authorized?`
+  and `## Authorized baseline files`.
+- Use `NO` followed by `NONE.` when no visual baseline update is expected.
+- Use `YES` only when the human request intentionally changes approved UI.
+- When using `YES`, list every exact repository-relative baseline path that may
+  change under `## Authorized baseline files` and authorize no unrelated baseline.
 - Do not invent product requirements unnecessarily.
 - If something is ambiguous, record it under questions_or_risks.
 - Use a short lowercase hyphenated slug.

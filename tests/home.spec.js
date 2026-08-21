@@ -37,11 +37,12 @@ test('REG-001 - home page loads correctly', async ({ page }) => {
     await expect(counter).toContainText('Count is 2');
   });
 
-  await test.step('Verify visual regression', async () => {
-    await page.reload();
-    await expect(page).toHaveScreenshot('home-page.png', {
-      fullPage: true,
-    });
-  });
+});
 
+test('REG-001 - home page visual regression @visual', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(page).toHaveScreenshot('home-page.png', {
+    fullPage: true,
+  });
 });

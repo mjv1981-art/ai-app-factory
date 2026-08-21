@@ -13,6 +13,15 @@ Produce the final independent release recommendation.
 - screenshots and visual diffs;
 - Playwright traces/videos when relevant.
 
+## Visual approval rules
+
+When no human visual approval was recorded, reject any golden screenshot change.
+When approval was recorded, verify that exactly the contract-authorized baseline
+files changed, no other baseline changed, and the post-approval full regression
+passed. The Change Contract containing `## Human visual approval` is required
+evidence. Only those explicitly approved snapshots may be included in
+`files_to_commit`; reject every other baseline change.
+
 ## Required output
 
 ### Requested change

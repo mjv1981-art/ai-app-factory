@@ -70,9 +70,16 @@ Pages/components whose approved screenshots must remain unchanged:
 
 ## Baseline changes authorized?
 
-NO.
+NO
 
-If YES, explain exactly which baseline may change and why.
+## Authorized baseline files
+
+NONE.
+
+For an intentional visual change, use `YES` above and replace `NONE.` with a
+list of every exact repository-relative baseline path, for example:
+
+- `tests/example.spec.js-snapshots/example-chromium-win32.png`
 
 ## Human notes
 

@@ -38,11 +38,14 @@ Golden screenshots represent approved UX.
 A visual mismatch must be treated as a regression unless the Change Contract
 explicitly declares the visual difference as expected.
 
-Never run:
+Repository test convention:
 
-npx playwright test --update-snapshots
-
-unless the Change Contract explicitly authorizes baseline replacement.
+- functional tests must not contain visual screenshot assertions;
+- visual screenshot tests must have `@visual` in the test title;
+- the Builder may add visual tests when required but may NEVER update baselines;
+- baseline promotion is allowed only by the factory after explicit human approval;
+- only exact repository-relative baseline paths authorized by the approved Change
+  Contract may be promoted.
 
 ## Minimum-change rule
 
