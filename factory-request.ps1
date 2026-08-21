@@ -278,12 +278,34 @@ Write-Host ""
 Write-Host "Nothing has been changed yet." -ForegroundColor Green
 Write-Host ""
 
-$approval = Read-Host "Approve this Change Contract and start the factory? (Y/N)"
-
-if ($approval -notmatch "^[Yy]$") {
+while ($true) {
+    Write-Host "Approve this Change Contract?"
     Write-Host ""
-    Write-Host "Not approved. No branch or product change was created." -ForegroundColor Yellow
-    exit 0
+    Write-Host "[A] Approve"
+    Write-Host "[R] Reject"
+    Write-Host "[X] Exit"
+    Write-Host ""
+    $approval = (Read-Host "Choice").Trim().ToUpperInvariant()
+
+    if ($approval -in @("A", "Y", "YES", "APPROVE")) {
+        break
+    }
+
+    if ($approval -in @("R", "N", "NO", "REJECT")) {
+        Write-Host ""
+        Write-Host "The Change Contract was rejected." -ForegroundColor Yellow
+        exit 0
+    }
+
+    if ($approval -in @("X", "EXIT", "CANCEL", "QUIT")) {
+        Write-Host ""
+        Write-Host "The factory flow was cancelled by the user." -ForegroundColor Yellow
+        exit 0
+    }
+
+    Write-Host ""
+    Write-Host "Invalid response. Enter A to approve, R to reject, or X to exit." -ForegroundColor Yellow
+    Write-Host ""
 }
 
 # ------------------------------------------------------------

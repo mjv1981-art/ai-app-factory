@@ -490,9 +490,30 @@ if ($buildExit -eq 0 -and $functionalExit -eq 0 -and
     Start-Process -FilePath "npx.cmd" `
         -ArgumentList @("playwright", "show-report", $reportPath)
 
-    $approval = Read-Host "Type APPROVE to accept this visual change"
-    if ($approval -cne "APPROVE") {
-        Stop-Factory "Human visual approval was not granted. No snapshots were updated."
+    while ($true) {
+        Write-Host ""
+        Write-Host "Human Visual Approval"
+        Write-Host ""
+        Write-Host "[A] APPROVE visual baseline"
+        Write-Host "[R] REJECT visual change"
+        Write-Host "[X] EXIT factory"
+        Write-Host ""
+        $approval = (Read-Host "Decision").Trim().ToUpperInvariant()
+
+        if ($approval -in @("A", "APPROVE")) {
+            break
+        }
+
+        if ($approval -in @("R", "REJECT")) {
+            Stop-Factory "The visual change was rejected. No snapshots were updated."
+        }
+
+        if ($approval -in @("X", "EXIT", "CANCEL", "QUIT")) {
+            Stop-Factory "The user cancelled the factory flow. No snapshots were updated."
+        }
+
+        Write-Host ""
+        Write-Host "Invalid response. Enter A to approve, R to reject, or X to exit." -ForegroundColor Yellow
     }
 
     $promotionLog = Join-Path $runtime "baseline-promotion.log"
