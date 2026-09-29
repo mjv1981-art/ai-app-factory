@@ -1,0 +1,29 @@
+# Maintainer/integration environment only. Hosted users do not run this locally.
+services:
+  database:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: factory
+      POSTGRES_PASSWORD: ${LOCAL_DATABASE_PASSWORD:?Set a development database password}
+      POSTGRES_DB: factory
+    volumes:
+      - factory-db:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U factory]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  web:
+    build: .
+    env_file: .env
+    ports:
+      - 127.0.0.1:3000:3000
+    depends_on:
+      database:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+volumes:
+  factory-db:

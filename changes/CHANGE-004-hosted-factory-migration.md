@@ -10,10 +10,11 @@ Migrate reusable Galaxy Capital Factory capabilities and deliver a hosted web SD
 
 ## Status
 
-DRAFT — awaiting human approval. This pull request changes this contract only.
-It does not implement, deploy, or claim to operate the hosted Factory.
-Approval must identify this contract revision before a Builder changes product or infrastructure files.
-The proposed permissions below become active only upon that approval.
+APPROVED for implementation by the repository owner in conversation:
+"I approve CHANGE-004 in PR #15".
+Approval binds the contract at commit `d6350287c4ac927801d8e4957fc712d8c0118b7c`.
+This approval record does not change its implementation scope or authorize deployment expenditure.
+The owner subsequently requested free hosting; target free-tier operation with no paid fallback.
 
 ## Request
 
@@ -305,7 +306,7 @@ NOT_APPLICABLE. No golden baseline promotion is authorized.
 
 Requested by the repository owner in conversation on 2026-09-29.
 Dedicated web chat/dashboard selected explicitly in that conversation.
-Contract approval: PENDING.
+Contract approval: APPROVED in conversation, binding revision `d6350287c4ac927801d8e4957fc712d8c0118b7c`.
 Hosting provider/region/domain and spend allowance: PENDING; not prerequisites for reviewing this contract or implementing provider-neutral code.
 Deployment/account credentials: not supplied in this contract; configure through private account/secret settings, never by pasting secrets into a PR.
 Implementation must not be described as complete until AC-15 is evidenced.

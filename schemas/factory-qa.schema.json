@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "summary", "acceptance_criteria", "regression_findings", "warnings"],
+  "properties": {
+    "verdict": { "type": "string", "enum": ["PASS", "FAIL", "PASS_WITH_WARNINGS"] },
+    "summary": { "type": "string" },
+    "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+    "regression_findings": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  }
+}
