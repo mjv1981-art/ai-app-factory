@@ -48,9 +48,9 @@ jobs:
           FACTORY_OWNER: ${{ vars.FACTORY_OWNER }}
           FACTORY_ORIGIN: ${{ vars.FACTORY_ORIGIN }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GITHUB_APP_ID: ${{ vars.GITHUB_APP_ID }}
-          GITHUB_APP_PRIVATE_KEY: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
-          GITHUB_REPOSITORY_CREATION_TOKEN: ${{ secrets.GITHUB_REPOSITORY_CREATION_TOKEN }}
+          GITHUB_APP_ID: ${{ vars.FACTORY_GITHUB_APP_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.FACTORY_GITHUB_APP_PRIVATE_KEY }}
+          GITHUB_REPOSITORY_CREATION_TOKEN: ${{ secrets.FACTORY_GITHUB_REPOSITORY_CREATION_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'openrouter/free' }}
           FACTORY_BUILD_IMAGE: ${{ vars.FACTORY_BUILD_IMAGE || 'mcr.microsoft.com/playwright:v1.63.0-noble' }}
