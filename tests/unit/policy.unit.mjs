@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { safePath, classify, applyExact, validatePlan, validatePatch, discover, context, hash } from '../../factory/policy.mjs';
 import { checkAllowance, usageFrom, totals, defaultLimits } from '../../factory/usage.mjs';
 import { encrypt, decrypt, verifyWebhook } from '../../server/auth.mjs';
-import { dockerArgs } from '../../worker/sandbox.mjs';
+import { dockerArgs, hostUser } from '../../worker/sandbox.mjs';
 import { previewDocument } from '../../server/preview.mjs';
 const file = content => ({ encoding: 'utf-8', content });
 const files = { 'src/App.jsx': file('export default () => <h1>Hello world</h1>') };
@@ -58,9 +58,16 @@ test('session encryption authenticates ciphertext and webhook signatures are man
   assert.throws(() => verifyWebhook(Buffer.from('{}'), 'forged', 'secret'));
 });
 test('sandbox has no application secrets, privilege or host networking', () => {
-  const args = dockerArgs({ name: 'test', root: '/tmp/test', network: 'none', image: 'factory-build:local', args: ['npm', 'run', 'build'] });
+  const args = dockerArgs({ name: 'test', root: '/tmp/test', network: 'none', image: 'factory-build:local', args: ['npm', 'run', 'build'], user: '1001:127' });
   assert.ok(args.includes('--read-only')); assert.ok(args.includes('--cap-drop=ALL'));
+  assert.equal(args[args.indexOf('--user') + 1], '1001:127');
   assert.ok(!args.some(a => /DATABASE_URL|OPENROUTER|GITHUB_TOKEN|privileged/.test(a)));
+});
+test('sandbox uses the non-root host identity so container output remains removable', () => {
+  assert.equal(hostUser('linux', () => 1001, () => 127), '1001:127');
+  assert.equal(hostUser('linux', () => 0, () => 0), '1000:1000');
+  assert.equal(hostUser('win32'), '1000:1000');
+  assert.throws(() => dockerArgs({ name: 'test', root: '/tmp/test', network: 'none', image: 'factory-build:local', args: [], user: '0:0' }));
 });
 test('baseline reports compatibility and bounded context preserves provenance', () => {
   assert.equal(discover(files, 'abc').supported, false);

@@ -17,11 +17,19 @@ export function command(executable, args, { timeout = 120000, cwd, signal } = {}
     child.on('close', code => { clearTimeout(timer); resolve({ code: timedOut ? 124 : code, output, timedOut }); });
   });
 }
-export function dockerArgs({ name, root, network, image, args }) {
+export function hostUser(platform = process.platform, getuid = process.getuid?.bind(process), getgid = process.getgid?.bind(process)) {
+  if (platform !== 'win32') {
+    const uid = getuid?.(), gid = getgid?.();
+    if (Number.isSafeInteger(uid) && uid > 0 && Number.isSafeInteger(gid) && gid >= 0) return `${uid}:${gid}`;
+  }
+  return '1000:1000';
+}
+export function dockerArgs({ name, root, network, image, args, user = '1000:1000' }) {
   invariant(/^[a-zA-Z0-9_./:-]+(?:@sha256:[a-f0-9]{64})?$/.test(image), 'Invalid worker image.');
   invariant(/^[a-zA-Z0-9_.-]+$/.test(network), 'Invalid build network.');
+  invariant(/^[1-9]\d*:\d+$/.test(user), 'Worker container must use a numeric non-root user.');
   return ['run', '--name', name, '--rm', '--init', '--read-only', '--cap-drop=ALL', '--security-opt=no-new-privileges',
-    '--pids-limit=256', '--memory=2g', '--cpus=2', '--network', network, '--user', '1000:1000',
+    '--pids-limit=256', '--memory=2g', '--cpus=2', '--network', network, '--user', user,
     '--tmpfs', '/tmp:rw,noexec,nosuid,size=512m', '--mount', `type=bind,source=${root},target=/workspace`,
     '--workdir', '/workspace', '--env', 'CI=true', '--env', 'HOME=/tmp', '--env', 'PLAYWRIGHT_BROWSERS_PATH=/ms-playwright', image, ...args];
 }
@@ -47,7 +55,7 @@ async function collect(root, directory, maxBytes = 12000000) {
   await walk(path.join(root, directory)); return result;
 }
 export class Sandbox {
-  constructor({ image, network, runner = command }) { Object.assign(this, { image, network, runner }); }
+  constructor({ image, network, runner = command, user = hostUser() }) { Object.assign(this, { image, network, runner, user }); }
   async verify(files, { create = false, signal } = {}) {
     validateBundle(files);
     invariant(this.image && this.network, 'Isolated build image and restricted network must be configured.', 503);
@@ -60,7 +68,7 @@ export class Sandbox {
         await fs.writeFile(full, entry.content, entry.encoding === 'base64' ? 'base64' : 'utf8');
       }
       await fs.chmod(root, 0o777);
-      // UID 1000 in a rootless, capability-free container owns only its disposable workspace.
+      // The host-matched UID in a capability-free container keeps disposable output removable by the worker.
       if (process.platform !== 'win32') {
         const permission = await this.runner('chmod', ['-R', 'a+rwX', root]);
         invariant(permission.code === 0, 'Could not prepare disposable workspace.');
@@ -72,7 +80,7 @@ export class Sandbox {
       for (const [stage, args] of steps) {
         const name = `factory-${id()}`; names.push(name);
         const started = Date.now();
-        const r = await this.runner('docker', dockerArgs({ name, root, network: stage === 'install' || stage === 'lockfile' ? this.network : 'none', image: this.image, args }), { timeout: 300000, signal });
+        const r = await this.runner('docker', dockerArgs({ name, root, network: stage === 'install' || stage === 'lockfile' ? this.network : 'none', image: this.image, args, user: this.user }), { timeout: 300000, signal });
         // Kill a container after timeout/abort; killing the docker client alone is insufficient.
         await this.runner('docker', ['rm', '-f', name], { timeout: 10000 }).catch(() => {});
         results.push({ stage, ...r, elapsedMs: Date.now() - started });
