@@ -74,7 +74,14 @@ export class Engine {
         await this.stage(run, 'create_private_repository');
         await this.github.createRepository(project.name, project.id);
         // Installation access must be granted before any content is published.
-        const created = await this.github.snapshot(project.repository);
+        let created;
+        try { created = await this.github.snapshot(project.repository); }
+        catch (error) {
+          if (error.githubStatus !== 404) throw error;
+          await this.store.put('projects', { ...project, status: 'awaiting_repository_access' }, this.owner);
+          await this.store.updateRun(this.owner, runId, { status: 'awaiting_repository_access', stage: 'repository_access_required', error: null });
+          return;
+        }
         snapshot = { ...created, files: snapshot.files };
         await this.store.updateRun(this.owner, runId, { provisionedBaseSha: created.sha });
       } else invariant(await this.github.currentSha(project.repository, snapshot.branch) === snapshot.sha, 'Approved base commit is stale.', 409);

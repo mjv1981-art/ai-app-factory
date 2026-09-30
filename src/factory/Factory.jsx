@@ -3,7 +3,7 @@ import './factory.css'
 
 const label = value => (value || '').replaceAll('_', ' ')
 const format = value => value == null ? 'Unknown' : Number(value).toLocaleString()
-const activeStates = ['queued', 'running', 'awaiting_approval', 'awaiting_ci']
+const activeStates = ['queued', 'running', 'awaiting_approval', 'awaiting_repository_access', 'awaiting_ci']
 
 export default function Factory() {
   const [session, setSession] = useState(null)
@@ -104,10 +104,12 @@ function Run({ run, busy, act, api }) {
     <p className="factory-muted">{label(run.stage || 'queued')} {run.plan && `· ${run.plan.profile}`}</p>
     {run.staleHeartbeat && <p className="factory-error">Worker heartbeat is stale. Inspect the cloud job; this attempt is not automatically replayed.</p>}
     {run.error && <p className="factory-error">{run.error}</p>}{run.dispatchError && <p className="factory-error">Dispatch unavailable: {run.dispatchError}</p>}
+    {run.status === 'awaiting_repository_access' && <p>Repository created privately. Add it to the GitHub App's selected repositories, then continue this approved run.</p>}
     {run.plan && <details open={run.status === 'awaiting_approval'}><summary>Change contract and limits</summary><p>{run.plan.reasons?.join(' ')}</p><ul>{run.plan.criteria.map((c, i) => <li key={i}>{c}</li>)}</ul><p>Files: {run.plan.files.join(', ')}</p><p>Milestones: {run.plan.milestones.join(' → ')}</p>{run.plan.risks.map((r, i) => <p key={i}>{r}</p>)}<p>Run allowance: {format(run.limits.tokens)} tokens · {run.limits.calls} calls · {run.limits.seconds / 60} minutes · Paid models disabled</p><small>Revision {run.planHash?.slice(0, 12)} · Base {run.plan.baseSha.slice(0, 12)}</small></details>}
     {run.verification && <p>Verification: {run.verification.passed ? 'Passed' : 'Failed / insufficient evidence'} · {run.verification.stats?.expected || 0} expected passes · {run.verification.stats?.skipped || 0} skipped</p>}
     <div className="factory-actions">{run.status === 'awaiting_approval' && <button className="factory-primary" disabled={busy} onClick={() => act(() => api(`/runs/${run.id}/approve`, { revision: run.planHash }))}>Approve this plan</button>}
       {run.status === 'queued' && <button disabled={busy} onClick={() => act(() => api(`/runs/${run.id}/dispatch`, {}))}>Retry dispatch</button>}
+      {run.status === 'awaiting_repository_access' && <button className="factory-primary" disabled={busy} onClick={() => act(() => api(`/runs/${run.id}/resume`, {}))}>Continue after granting access</button>}
       {activeStates.includes(run.status) && <button disabled={busy} onClick={() => act(() => api(`/runs/${run.id}/cancel`, {}))}>Cancel run</button>}
       {run.pr && <><a className="factory-primary" href={run.pr.url} target="_blank" rel="noreferrer">Review pull request ↗</a><button disabled={busy} onClick={() => act(() => api(`/runs/${run.id}/checks`, {}))}>Check required CI</button></>}
       {run.artifacts?.map(a => a.name === 'preview.json' ? <button key={a.id} disabled={busy} onClick={() => setPreview(`/api/preview/${a.id}`)}>Open preview</button> : <a className="factory-evidence" key={a.id} href={`/api/artifacts/${a.id}`}>{a.name} ↓</a>)}

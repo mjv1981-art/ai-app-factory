@@ -70,6 +70,43 @@ test('new-project plan requires explicit approval and provisions only a private 
     const final = await store.get('runs', run.id, 'owner'); assert.equal(final.status, 'awaiting_ci', final.error); assert.equal(provisions, 1); assert.equal(publishes, 1);
   } finally { await store.pool.end(); }
 });
+test('new-project execution pauses until selected-repository access is granted', async () => {
+  const store = await database();
+  try {
+    let provisions = 0, accessGranted = false;
+    const github = {
+      dispatch: async () => {},
+      createRepository: async () => { provisions++ },
+      authorized: async () => { if (!accessGranted) throw Object.assign(new Error('Not installed.'), { status: 404 }); return true },
+      snapshot: async () => {
+        if (!accessGranted) throw Object.assign(new Error('Not installed.'), { githubStatus: 404 });
+        return { files: {}, sha: 'initial', branch: 'main', omitted: [] };
+      },
+      publish: async () => ({ sha: 'head', url: 'https://github.com/owner/app/pull/1' })
+    };
+    const artifacts = new Artifacts(store, {}), service = new FactoryService({ store, github, artifacts, owner: 'owner' });
+    const provider = { json: async (_run, stage, _instruction, input) => {
+      if (stage === 'planner') return { title: 'Build an app', profile: 'STANDARD', baseSha: 'new', files: ['src/App.jsx'], infrastructure: [], criteria: ['The app renders'], milestones: ['Build the app'], risks: [], reasons: ['New application'] };
+      if (stage === 'builder') return { files: { 'src/App.jsx': "import React from 'react'; export default () => <main>App</main>" } };
+      if (stage === 'qa') return { verdict: 'PASS', criteria: ['The app renders'], findings: [] };
+      if (stage === 'reviewer') return { verdict: 'SAFE_TO_REVIEW', files_to_commit: input.changes.map(c => c.path), risks: [] };
+      throw new Error(`Unexpected stage ${stage}`);
+    } };
+    const engine = new Engine({ store, github, artifacts, provider, owner: 'owner', sandbox: { verify: async () => ({ ...verification(), lockfile: '{}' }) } });
+    const project = await service.create({ name: 'app', request: 'Build an app', visibility: 'private' });
+    let run = (await store.list('runs', 'owner'))[0]; await engine.execute(run.id);
+    run = await store.get('runs', run.id, 'owner'); await service.approve(run.id, run.planHash); await engine.execute(run.id);
+    run = await store.get('runs', run.id, 'owner');
+    assert.equal(run.status, 'awaiting_repository_access');
+    assert.equal((await store.get('projects', project.id, 'owner')).status, 'awaiting_repository_access');
+    await assert.rejects(service.resumeRepositoryAccess(run.id, 'user-token'));
+    accessGranted = true;
+    await service.resumeRepositoryAccess(run.id, 'user-token'); await engine.execute(run.id);
+    const final = await store.get('runs', run.id, 'owner');
+    assert.equal(final.status, 'awaiting_ci', final.error);
+    assert.equal(provisions, 2, 'idempotent repository creation is retried after access confirmation');
+  } finally { await store.pool.end(); }
+});
 test('cross-project artifact requests are denied', async () => {
   const store = await database();
   try { const artifacts = new Artifacts(store, {}); const a = await artifacts.put('owner', { id: id(), projectId: 'private' }, 'report', Buffer.from('private')); await assert.rejects(artifacts.get('other', a.id)); }

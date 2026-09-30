@@ -66,6 +66,16 @@ export class FactoryService {
     invariant(!['ready_for_review', 'failed', 'cancelled'].includes(run.status), 'Run is already finished.', 409);
     await this.store.updateRun(this.owner, runId, { status: 'cancelled' }); await this.store.audit(this.owner, 'run.cancelled', { runId });
   }
+  async resumeRepositoryAccess(runId, userToken) {
+    const run = await this.store.get('runs', runId, this.owner);
+    invariant(run.kind === 'create' && run.status === 'awaiting_repository_access', 'Run is not waiting for repository access.', 409);
+    const project = await this.store.get('projects', run.projectId, this.owner);
+    await this.github.authorized(project.repository, userToken);
+    await this.store.put('projects', { ...project, status: 'planning' }, this.owner);
+    await this.store.updateRun(this.owner, runId, { status: 'queued', stage: 'repository_access_confirmed', createdAt: new Date().toISOString(), error: null });
+    await this.store.audit(this.owner, 'repository.access_confirmed', { runId, repository: project.repository });
+    return { runId };
+  }
   async check(runId) {
     const run = await this.store.get('runs', runId, this.owner);
     invariant(run.pr, 'No pull request exists.', 409);
