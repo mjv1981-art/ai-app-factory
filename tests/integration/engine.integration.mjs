@@ -133,6 +133,9 @@ test('new-project release review retries exact files and a verified failed run c
     assert.equal(failed.status, 'failed'); assert.equal(failed.error, 'Release review did not approve the exact file set.');
     assert.equal(failed.reviewAttempts.length, 2); assert.equal(publishes, 0);
     currentSha = 'changed'; await assert.rejects(service.retryFailedCreate(failed.id), /Repository changed/); currentSha = 'initial';
+    const builderFailure = { ...failed, id: id(), stage: 'builder', error: 'Provider returned invalid JSON twice; usage retained.', verification: undefined, qa: undefined, review: undefined, reviewAttempts: undefined };
+    await store.put('runs', builderFailure, 'owner'); await store.put('snapshots', { ...(await store.get('snapshots', failed.id, 'owner')), id: builderFailure.id }, 'owner');
+    const builderRetry = await service.retryFailedCreate(builderFailure.id); assert.equal(builderRetry.status, 'queued'); assert.equal(builderRetry.retryOf, builderFailure.id);
     const retry = await service.retryFailedCreate(failed.id); await engine.execute(retry.id);
     const final = await store.get('runs', retry.id, 'owner');
     assert.equal(final.status, 'awaiting_ci', final.error); assert.equal(final.retryOf, failed.id);

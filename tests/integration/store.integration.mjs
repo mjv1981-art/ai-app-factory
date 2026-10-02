@@ -50,3 +50,18 @@ test('provider failures preserve unknown reservations and never silently retry p
     provider.model = 'paid/model'; await assert.rejects(provider.json(run, 'builder', 'Return JSON', {})); assert.equal(calls, 1);
   } finally { await store.pool.end(); }
 });
+test('accounted invalid JSON from a verified-free model gets one bounded format retry', async () => {
+  const store = await database();
+  try {
+    const run = { id: id(), projectId: 'p', status: 'running', createdAt: new Date().toISOString(), limits: defaultLimits };
+    await store.put('runs', run, 'owner');
+    let calls = 0, corrected = false;
+    const provider = new OpenRouter({ store, owner: 'owner', key: 'test', fetcher: async (url, options) => {
+      if (url.endsWith('/models')) return { ok: true, json: async () => ({ data: [{ id: 'openrouter/free', pricing: { prompt: '0', completion: '0' }, context_length: 200000 }] }) };
+      calls++; const request = JSON.parse(options.body); corrected = request.messages.at(-1).content.includes('previous free-model response');
+      return { ok: true, status: 200, json: async () => ({ id: `attempt-${calls}`, model: 'free/test', provider: 'test', choices: [{ finish_reason: calls === 1 ? 'length' : 'stop', message: { content: calls === 1 ? '{' : '{"ok":true}' } }], usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12, cost: 0 } }) };
+    } });
+    assert.deepEqual(await provider.json(run, 'builder', 'Return JSON', {}), { ok: true }); assert.equal(calls, 2); assert.equal(corrected, true);
+    const usage = await store.list('usage', 'owner'); assert.equal(usage.length, 2); assert.ok(usage.every(item => item.status === 'completed' && item.costUsd === 0));
+  } finally { await store.pool.end(); }
+});

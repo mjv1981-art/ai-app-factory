@@ -78,9 +78,11 @@ export class FactoryService {
   }
   async retryFailedCreate(runId) {
     const previous = await this.store.get('runs', runId, this.owner);
-    invariant(previous.kind === 'create' && previous.action === 'execute' && previous.status === 'failed' && previous.stage === 'release_review', 'Only a failed new-project release review can be retried.', 409);
+    const retryableStages = ['builder', 'build_and_playwright', 'independent_qa', 'repair', 'release_review'];
+    invariant(previous.kind === 'create' && previous.action === 'execute' && previous.status === 'failed' && retryableStages.includes(previous.stage), 'Only a failed pre-publication new-project run can be retried.', 409);
     invariant(previous.plan && previous.planHash === previous.approvedHash && hash(previous.plan) === previous.approvedHash, 'The approved plan revision is no longer valid.', 409);
-    invariant(previous.verification?.passed && previous.qa?.verdict === 'PASS' && !previous.pr, 'The failed run does not have the verified pre-publication state required for retry.', 409);
+    invariant(!previous.pr, 'A run with a published pull request cannot use this retry path.', 409);
+    if (previous.stage === 'release_review') invariant(previous.verification?.passed && previous.qa?.verdict === 'PASS', 'The release-review failure lacks required verification or QA evidence.', 409);
     const project = await this.store.get('projects', previous.projectId, this.owner);
     invariant(project.type === 'new', 'Only new projects can use this retry path.', 409);
     invariant(previous.provisionedBaseSha && await this.github.currentSha(project.repository, previous.branch) === previous.provisionedBaseSha, 'Repository changed after the failed run; create a new plan.', 409);
