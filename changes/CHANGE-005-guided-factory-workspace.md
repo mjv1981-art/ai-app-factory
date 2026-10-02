@@ -10,7 +10,11 @@ Make Factory work understandable, visible and recoverable from the product inter
 
 ## Status
 
-DRAFT — Guided workspace design endorsed; awaiting approval of the complete implementation contract.
+APPROVED — implementation authorized by the owner on 2026-10-02.
+
+Approval: "perfect. please apply the redesign." This approves the complete contract
+at commit `e49d84e61a80662298ffd8972067c48db2d742ac`, including the accepted Guided
+workspace and animation/color refinement. No merge or visual baseline promotion is authorized.
 
 The owner's request on 2026-10-02 authorizes redesign planning. The owner confirmed:
 
@@ -22,8 +26,8 @@ The owner's request on 2026-10-02 authorizes redesign planning. The owner confir
   as well as color coding". This records design feedback; the complete implementation
   contract remains draft.
 
-These decisions do not approve the complete implementation contract. CHANGE-004 and
-deployment PR #15 remain separate. No merge is authorized by this proposal.
+The later implementation approval above supersedes the draft status. CHANGE-004 and
+deployment PR #15 remain separate. No merge is authorized.
 
 ## Execution profile
 
@@ -338,4 +342,4 @@ NONE.
 
 Guided workspace concept endorsed by the owner on 2026-10-02, with the requested
 color/motion refinement incorporated. Approval of the complete implementation contract
-is still pending. No visual-baseline files are authorized for promotion.
+was supplied with the implementation request above. No visual-baseline files are authorized for promotion.

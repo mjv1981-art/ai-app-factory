@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { database } from '../integration/support.mjs';
-import { createHandler } from '../../server/http.mjs';
+import { createHandler, body } from '../../server/http.mjs';
 import { FactoryService } from '../../server/service.mjs';
 import { Artifacts } from '../../server/artifacts.mjs';
 import { id, hash } from '../../factory/policy.mjs';
@@ -31,4 +31,31 @@ const auth = { session: async req => {
   if (req.method === 'POST' && (req.headers.origin !== config.origin || req.headers['x-csrf-token'] !== 'test-csrf')) throw Object.assign(new Error('CSRF rejected.'), { status: 403 });
   return { owner, csrf: 'test-csrf', token: 'test', id: 'test-session' };
 } };
-http.createServer(createHandler({ service, auth, config, store, artifacts })).listen(4312, '127.0.0.1');
+const handler = createHandler({ service, auth, config, store, artifacts });
+// Explicitly simulated stages for UI coverage; never imported by the production server.
+http.createServer(async (req, res) => {
+  if (!req.url.startsWith('/__fixture/')) return handler(req, res);
+  try {
+    await auth.session(req);
+    const input = JSON.parse((await body(req)).toString() || '{}');
+    let result;
+    if (req.url === '/__fixture/seed') {
+      const p = { ...project, id: id(), name: input.name, repository: owner + '/' + input.name, ...(input.prState?.merged ? { status: 'baseline_needed', baseline: { ...project.baseline, approved: false } } : {}) };
+      const scenarioPlan = { ...plan, profile: input.profile || 'STANDARD' };
+      const r = { id: id(), projectId: p.id, kind: input.kind || 'enhancement', action: 'execute', request: scenarioPlan.title, plan: scenarioPlan, planHash: hash(scenarioPlan), branch: 'main', limits: defaultLimits, status: input.status || 'running', stage: input.stage || 'builder', heartbeatAt: input.stale ? new Date(Date.now() - 150000).toISOString() : new Date().toISOString(), createdAt: new Date().toISOString() };
+      if (r.status !== 'awaiting_approval') r.approvedHash = r.planHash;
+      if (r.status === 'failed') { r.error = 'Release review stopped publication.'; r.failure = { code: 'REVIEW_STOP', stage: 'release_review', at: new Date().toISOString() }; r.review = { verdict: 'STOP', risks: input.malformed ? [{ unknown: 'Legacy finding' }] : ['Clarify local-only state.'], files_to_commit: [], ...(input.malformed ? { summary: { unknown: 'Legacy summary' } } : {}) }; }
+      if (input.prState) { r.pr = { sha: 'head', number: 1, url: 'https://github.com/owner/app/pull/1' }; r.prState = input.prState; r.ci = { passed: true, sha: 'head' }; }
+      await store.put('projects', p, owner); result = await store.put('runs', r, owner);
+      await store.put('usage', { id: id(), runId: r.id, projectId: p.id, stage: 'planner', totalTokens: 40, costUsd: 0, status: 'completed' }, owner);
+      if (input.pending || input.uncertain) await store.put('usage', { id: id(), runId: r.id, projectId: p.id, stage: 'builder', totalTokens: null, costUsd: null, status: input.uncertain ? 'uncertain' : 'reserved', reservedTokens: input.uncertain ? 200 : 100 }, owner);
+      result = { run: result, project: p };
+    } else {
+      const key = req.url.slice('/__fixture/run/'.length);
+      const current = await store.get('runs', key, owner);
+      if (input.status === 'awaiting_approval') { input.plan = { ...(current.plan || plan), title: 'Revised note action' }; input.planHash = hash(input.plan); }
+      result = await store.updateRun(owner, key, input);
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(result));
+  } catch (error) { res.writeHead(error.status || 500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: error.message })); }
+}).listen(4312, '127.0.0.1');

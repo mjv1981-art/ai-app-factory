@@ -1,4 +1,61 @@
-# CHANGE-004 implementation evidence
+# CHANGE-005 guided workspace evidence (2026-10-03)
+
+Release state: **M1–M6 REVIEW PASSED — EXACT-COMMIT CI / HOSTED ACCEPTANCE PENDING**.
+The owner approved the complete contract at
+`e49d84e61a80662298ffd8972067c48db2d742ac` and authorized independent read-only QA and
+release review. Redesign PR #16 is stacked on the unmerged migration PR #15.
+Neither PR may be merged by the Factory. Galaxy Capital was not changed.
+
+## Deterministic checks
+
+| Check | Result | Evidence boundary |
+| --- | --- | --- |
+| ESLint | PASS | Existing configuration unchanged |
+| Production Vite build | PASS | Compiled guided Factory assets |
+| Node unit/integration suite | 47 PASS; 0 skipped | Actual PGlite SQL; mocked GitHub, model and sandbox boundaries |
+| Factory Chromium suite | 18 PASS; 0 skipped | Actual HTTP service/database/browser, fixture authentication and external services |
+| Original counter functional / visual | 2 PASS | Unchanged assertions and Windows golden image; isolated temporary port configuration |
+| Whitespace/scope check | PASS at local checkpoint | All changed paths are explicitly permitted by CHANGE-005 |
+
+Browser coverage preserves all seven original Factory journeys and adds eleven for fresh
+animation, motion pause, reduced motion, failed polling, review-stop clarification and
+fresh reapproval, uncertain usage/stale worker refusal, exact-profile stages, merged/closed
+handoffs, legacy diagnostic rendering, scoped feedback and keyboard controls. Both themes
+pass at 320, 390, 736 and 1024 CSS pixels. Screenshots are review evidence, not golden promotions.
+
+Recovery coverage includes concurrent idempotency, owner/revision/access/current-base
+guards, superseded approval refusal, retry/replan exclusivity, unchanged accounting,
+bounded stage/knowledge history, current-claim cancellation acknowledgement, late PR
+publication after cancellation, actual PR-head CI, lifecycle retention when CI cannot be
+read, and refusal to certify a changed or unknown recovered candidate. Structured QA/review
+diagnostics with object-valued fields are rejected after bounded accounted format attempts.
+
+The presentation state map and operational limitations are in docs/FACTORY_UX.md.
+No dependency, authentication, sandbox, schema, paid-model, CI configuration, protected
+counter test or visual-baseline change is included. No local validation made paid model calls.
+
+## Acceptance and review boundary
+
+Independent read-only QA returned **PASS** for M1–M6 / AC-01–16 and AC-18 and independently
+reran all 47 Node tests with no failures/skips. Independent release review returned
+**SAFE_TO_REVIEW**, approving the exact 27-file set. Neither found remaining blocking
+issues after correction of the publication/access/worker races. Passing fixtures does not establish AC-17.
+M7 / AC-17 requires the reviewed exact commit on the existing hosted service and private
+worker, followed by owner-assisted start, approval, active, stopped/revised/reapproved,
+ready-result and post-merge baseline journeys on designated test projects.
+
+Render was read on 2026-10-03: the existing service remains Free, auto-deploy off and sourced
+from `plan/hosted-factory-migration`. The private worker still pins
+`29c87e1f4dd66167bae02e019d3d439b774013bd`. Neither is running this redesign yet.
+The Render connector and Neon read connection both work. Browser access to Render currently
+requires operator sign-in to select the reviewed redesign branch; its connector has no
+branch-update action. No new service or payment method is requested.
+
+Neon confirms the new-app test project's post-merge discovery reached `baseline_review`
+at `f3b5221936721dfd3c5df5c9cbeb273fc618805b` with approval false. The redesign must show
+that explicit owner decision instead of implying baseline acceptance.
+
+## CHANGE-004 historical implementation evidence
 
 Release state: **DRAFT — DEPLOYED — LIVE ACCEPTANCE PARTIAL; HUMAN MERGE REQUIRED**.
 The owner approved the contract revision at `d6350287c4ac927801d8e4957fc712d8c0118b7c`.
@@ -75,10 +132,15 @@ The new-project path was exercised against the private repository
   expected passes, no unexpected results, no skipped tests and no flaky tests. Independent
   QA passed every criterion. Release review returned `SAFE_TO_REVIEW` and approved the exact
   18-file initial commit.
-- Draft pull request `mjv1981-art/factory-live-new-20261002#1` is open and unmerged at
+- At the initial acceptance checkpoint, draft pull request `mjv1981-art/factory-live-new-20261002#1` was open and unmerged at
   exact commit `7d242a3fa218150817d1decc49190155ff4055f1`. Required `playwright` CI passed for
   both push and pull-request events on that commit. The authenticated preview artifact
   `cdc81d7f-ace1-49a8-90f1-e1f1a695349e` contains the working launch checklist.
+
+The owner subsequently merged that generated app PR on 2026-10-02. The merged baseline
+was discovered again and is waiting for explicit approval as recorded above. The following
+CHANGE-004 table is the historical initial acceptance boundary; it is not a current claim
+that this generated app PR remains open or that the redesign has passed hosted acceptance.
 
 The live failures led to three controller fixes on the hosted branch: selected-repository
 pause/resume and idempotent creation (`f9f2e7de`), bounded release-review retry plus manual

@@ -1,6 +1,8 @@
 # Hosted Factory setup and access
 
-Status: implementation under CHANGE-004; no hosted production URL has been provisioned.
+Status: CHANGE-004 is deployed with partial live acceptance at
+https://ai-app-factory-mjv1981.onrender.com/factory. CHANGE-005 adds the guided workspace;
+its deployment and hosted acceptance are recorded separately in docs/VALIDATION.md.
 The website path is `/factory`. It requires the API, durable database, GitHub App and
 private worker connections. A static frontend deployment alone is not an operational Factory.
 
@@ -21,7 +23,10 @@ Suggested provider-independent mapping:
 | Evidence | Bounded PostgreSQL pilot storage, then a private S3-compatible bucket | Pilot cap 25 MB; individual artifact 15 MB; provider storage/egress quotas |
 
 Do not use Render's expiring free PostgreSQL as the durable project record.
-No subscription, cloud resource, repository creation, or paid model was provisioned by this change.
+The existing pilot uses Render Free service `srv-dau0vd1srm7s73acu9cg`, Neon Free project
+`gentle-cloud-92920568` and PRIVATE `mjv1981-art/private-factory-runs` Actions execution.
+The owner confirmed no Render payment method; Actions spending is blocked at USD 0.
+CHANGE-005 authorizes deployment to these existing resources only.
 No guarantee of free capacity or always-on service is made. Hosting charges are separate
 from model token accounting; the dashboard does not claim to read cloud billing.
 
@@ -100,8 +105,9 @@ Baseline defects currently block enhancements and require a separate remediation
 - A run is persisted before dispatch. A dispatch error remains visible and can be retried.
   Duplicate worker deliveries cannot reclaim a running/finished run.
 - Stale running jobs are shown after two minutes without heartbeat. Inspect the Actions job;
-  do not blindly replay an uncertain provider attempt. Usage reservations remain charged to
-  the allowance until reconciled. Cancel and create a new approved run after review.
+  do not replay an uncertain provider attempt. Usage reservations remain charged to
+  the allowance until reconciled. Current worker acknowledgement and resolved usage
+  are required before a fresh plan can be authorized.
 - Approval expires logically when the plan hash or base commit changes. Replan rather than
   publish against an unapproved new base.
 - Cancellation stops later stages and is polled during sandbox execution. Already dispatched
@@ -110,3 +116,20 @@ Baseline defects currently block enhancements and require a separate remediation
   artifacts consume the database allowance. No automated retention deletion is implemented.
 - The web service does not run a background queue loop; approved work dispatches a private
   GitHub job. Sleeping web hosting does not terminate a job already dispatched.
+
+## Guided workspace operations
+
+See docs/FACTORY_UX.md for the state map, color/motion, accounting and safe recovery flow.
+Use **Create a revised plan** to clarify an eligible stop; the new plan needs fresh approval.
+**Check GitHub publication** only reads an unresolved run's existing PR. An unknown candidate
+commit stays unconfirmed even if CI passes. Neither action merges or overrides review.
+
+Stage history uses existing JSON records (160 events/run; no heartbeat events), and knowledge
+retains the current context plus seven historical/proposed versions per project. Private
+artifact limits and retention operations remain unchanged. No migration or new resource is needed.
+
+For deployment, keep auto-deploy off and the Free instance unchanged. Select the reviewed
+Factory branch on the existing service, pin private-worker FACTORY_RELEASE_SHA to its exact
+reviewed commit, and manually deploy only after required checks and release review pass.
+Changing a source branch is not a merge. The Render connector does not expose branch editing;
+the operator must use an authenticated service Settings page for that step.

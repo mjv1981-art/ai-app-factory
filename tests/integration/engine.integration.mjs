@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { GitHub } from '../../server/github.mjs';
 import assert from 'node:assert/strict';
 import { database } from './support.mjs';
 import { Engine } from '../../worker/engine.mjs';
@@ -147,4 +148,25 @@ test('cross-project artifact requests are denied', async () => {
   const store = await database();
   try { const artifacts = new Artifacts(store, {}); const a = await artifacts.put('owner', { id: id(), projectId: 'private' }, 'report', Buffer.from('private')); await assert.rejects(artifacts.get('other', a.id)); }
   finally { await store.pool.end(); }
+});
+test('an existing run PR must match the reviewed candidate tree and single approved parent', async () => {
+  const github = new GitHub({ owner: 'owner' }); let candidateTree = 'different', parents = [{ sha: 'base' }];
+  const mutations = [];
+  github.token = async () => 'test'; github.currentSha = async () => 'base';
+  github.request = async (path, _token, method = 'GET') => {
+    if (method !== 'GET') mutations.push(path);
+    if (path.includes('/pulls?')) return [{ head: { sha: 'observed' }, html_url: 'https://github.com/owner/app/pull/1', number: 1 }];
+    if (path.endsWith('/git/blobs')) return { sha: 'blob' };
+    if (path.endsWith('/git/trees')) return { sha: 'reviewed-tree' };
+    if (path.endsWith('/git/commits/observed')) return { tree: { sha: candidateTree }, parents };
+    throw new Error('Unexpected request: ' + path);
+  };
+  const snapshot = { sha: 'base', branch: 'main', tree: 'base-tree', files: {} }, files = { 'src/App.jsx': { content: 'Reviewed content', encoding: 'utf-8' } };
+  await assert.rejects(github.publish('owner/app', { id: id() }, snapshot, files, ['src/App.jsx']), /does not match/);
+  candidateTree = 'reviewed-tree'; parents = [{ sha: 'other' }];
+  await assert.rejects(github.publish('owner/app', { id: id() }, snapshot, files, ['src/App.jsx']), /does not match/);
+  parents = [{ sha: 'base' }, { sha: 'other' }];
+  await assert.rejects(github.publish('owner/app', { id: id() }, snapshot, files, ['src/App.jsx']), /does not match/);
+  parents = [{ sha: 'base' }]; assert.equal((await github.publish('owner/app', { id: id() }, snapshot, files, ['src/App.jsx'])).sha, 'observed');
+  assert.ok(mutations.every(path => path.endsWith('/git/blobs') || path.endsWith('/git/trees')), 'No new PR, commit or branch is published');
 });
