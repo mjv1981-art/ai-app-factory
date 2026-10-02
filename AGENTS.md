@@ -2,6 +2,15 @@
 
 ## Core principle
 
+The hosted Factory is developed under approved contracts in `changes/`.
+`changes/CHANGE-004-hosted-factory-migration.md` records the owner-approved migration.
+Product UI is under `src/factory/`; trusted API/controller code is under `server/`,
+`factory/` and `worker/`. Target repository code must execute only inside the disposable
+restricted build container, with no control-plane credentials. Paid models are disabled.
+Source provenance is recorded in `docs/MIGRATION.md`.
+Use the hosted `/factory` workflow for product work. PowerShell entry points are optional
+authenticated API clients, not local coding-agent runners.
+
 Every change must be minimal, traceable, testable, and reviewable.
 
 A successful implementation is not enough.
@@ -17,6 +26,10 @@ Unrequested changes are regressions.
 6. Add tests when the requested behaviour is not adequately covered.
 7. Open a Pull Request.
 8. Do not merge unless required QA checks pass.
+
+9. Merge is always a human decision. The Factory must never auto-merge.
+10. Preserve uncertainty in usage and evidence. Never claim mocked provider/worker tests
+    prove hosted operation. Live acceptance and release review must be recorded separately.
 
 ## Protected assets
 

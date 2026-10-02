@@ -29,3 +29,10 @@ dist-ssr
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+.env
+.env.*
+!.env.example
+.factory-runtime/
+factory-test-results/
+factory-playwright-report/

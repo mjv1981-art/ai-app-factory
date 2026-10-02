@@ -1,72 +1,69 @@
-# CHANGE-XXX — Change Contract
+# Change Contract
 
-## Request
+## Change ID
 
-Describe the requested product change in plain language.
+CHANGE-XXX
 
-## Business intent
+## Title
 
-Why is this change needed?
+REPLACE_WITH_TITLE
 
-## Acceptance criteria
+## Execution profile
 
-- [ ] AC-01:
-- [ ] AC-02:
-- [ ] AC-03:
+STANDARD
 
-## Expected functional changes
-
-Describe behaviour that SHOULD change.
-
-## Expected visual changes
-
-Describe UI/UX that SHOULD change.
-
-If none:
+## Exact old text
 
 NONE.
 
-## Must remain unchanged
+## Exact new text
 
-Explicitly list areas that must not change.
+NONE.
 
-Examples:
+## Exact replacement files
 
-- navigation;
-- page layout;
-- authentication;
-- unrelated forms;
-- existing API contracts;
-- typography;
-- colours;
-- responsive behaviour.
+NONE.
+
+## Objective
+
+REPLACE_WITH_OBJECTIVE
+
+## Execution milestones
+
+- M1: REPLACE_WITH_MEASURABLE_MILESTONE
+
+## In scope
+
+- REPLACE_WITH_EXPLICIT_SCOPE
 
 ## Out of scope
 
-List work that must NOT be performed.
+- Unrelated gameplay, UI/UX, game-rule, and Scenario Lab changes.
+
+## Acceptance criteria
+
+1. REPLACE_WITH_TESTABLE_CRITERION
 
 ## Regression scenarios
 
-Existing journeys that must continue working:
+- Identify applicable scenarios from `docs/PRODUCT_REGRESSION_PACK.md`.
+- Preserve foundational coverage in the project's existing regression suite.
 
-- REG-001:
-- REG-002:
-- REG-003:
+## Files/areas likely affected
 
-## Visual regression scope
+- REPLACE_WITH_PATHS_OR_AREAS
 
-Pages/components whose approved screenshots must remain unchanged:
+## Infrastructure changes authorized?
 
-- page/component:
-- page/component:
+NO
 
-## Test evidence required
+## Authorized infrastructure files
 
-- [ ] automated functional tests;
-- [ ] visual comparison;
-- [ ] screenshot evidence;
-- [ ] Playwright trace;
-- [ ] video where useful.
+NONE.
+
+## Visual changes authorized?
+
+NO
 
 ## Baseline changes authorized?
 
@@ -76,11 +73,16 @@ NO
 
 NONE.
 
-For an intentional visual change, use `YES` above and replace `NONE.` with a
-list of every exact repository-relative baseline path, for example:
+## Evidence expectations
 
-- `tests/example.spec.js-snapshots/example-chromium-win32.png`
+- `npm.cmd run build`
+- `npx.cmd playwright test`
+- Additional deterministic evidence required by the acceptance criteria.
 
-## Human notes
+## Risks
 
-Any additional constraints or observations.
+- REPLACE_WITH_IDENTIFIED_RISKS
+
+## Human visual approval
+
+NOT_APPLICABLE. If baseline changes are authorized, record the human decision and exact approved baseline files here after the visual approval gate.

@@ -1,0 +1,10 @@
+{
+  "defaultBranch": "main",
+  "runnerPlatform": "linux",
+  "requiredChecks": ["playwright"],
+  "commands": [["npm", "ci", "--ignore-scripts"], ["npm", "run", "build"], ["npx", "--no-install", "playwright", "test"]],
+  "contextPaths": ["AGENTS.md", "docs/PRODUCT.md", "docs/ARCHITECTURE.md", "docs/DECISIONS.md", "docs/PRODUCT_REGRESSION_PACK.md"],
+  "models": { "default": "openrouter/free", "paidFallback": false },
+  "limits": { "tokens": 180000, "stageTokens": 60000, "calls": 12, "stageCalls": 3, "seconds": 1800, "costUsd": 0 },
+  "note": "Documents the hosted MVP defaults. Arbitrary command/stack adapters are not enabled by this example."
+}

@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+node_modules
+dist
+.factory-runtime
+test-results
+playwright-report
+factory-test-results
+factory-playwright-report
