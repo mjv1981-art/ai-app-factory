@@ -10,13 +10,17 @@ Make Factory work understandable, visible and recoverable from the product inter
 
 ## Status
 
-DRAFT — awaiting the owner's approval of this contract and design direction.
+DRAFT — Guided workspace design endorsed; awaiting approval of the complete implementation contract.
 
 The owner's request on 2026-10-02 authorizes redesign planning. The owner confirmed:
 
 - A reviewer objection should lead to a revised plan and another review.
 - The first Factory guide should provide explanations and suggested actions, rather
   than a model-backed chat panel.
+- The owner endorsed the Guided workspace concept and requested animation plus color
+  coding for in-progress stages: "cool, I like that" and "please add some animations
+  as well as color coding". This records design feedback; the complete implementation
+  contract remains draft.
 
 These decisions do not approve the complete implementation contract. CHANGE-004 and
 deployment PR #15 remain separate. No merge is authorized by this proposal.
@@ -82,6 +86,13 @@ for the owner's design feedback; it is not an additional product mode in this co
    Revision creates a new linked plan and requires fresh approval before execution.
 6. Results lead to preview, PR review and exact-commit CI. A confirmed merged PR leads to
    discovering and approving the new baseline before another enhancement.
+7. Use a stable semantic palette: blue for work in progress, green for completed gates,
+   amber for waiting on the owner, red for a failed/stopped gate, and neutral gray for
+   pending, cancelled or unconfirmed activity. Pair every color with explicit text/icons.
+   Animate only confirmed in-progress work with a gentle activity spinner and a small
+   sweep on the current stage segment. Waiting/error/completed states remain still.
+   Motion never increments progress or tokens, respects reduced-motion preferences,
+   and can be paused independently of the run.
 
 The interactive planning concept uses labeled demonstration data and performs no real
 provider, cloud, approval, cancellation, repository or merge operations.
@@ -113,6 +124,8 @@ provider, cloud, approval, cancellation, repository or merge operations.
   identifiers, raw diagnostics, provenance and complete contracts in secondary detail views.
 - Stage-based progress, server-recorded elapsed time and heartbeats, last successful
   update, connection/stale indicators and durable event history.
+- Consistent color-coded stages and restrained in-progress activity animation, with
+  reduced-motion behavior and a pause-motion control independent of job cancellation.
 - Token/call/time allowance displays and per-stage usage that preserve reported,
   reserved, uncertain and zero-cost distinctions.
 - Deterministic explanations and supported recovery actions for review stops, verification
@@ -202,6 +215,13 @@ provider, cloud, approval, cancellation, repository or merge operations.
   approval, running, stopped/revised/reapproved and ready-for-review steps, plus the
   post-merge baseline handoff on a designated test app. Evidence distinguishes real
   provider/worker runs from simulated UI fixtures. All generated PRs remain human-owned.
+- AC-18: Confirmed active stages use blue activity indicators and gentle motion;
+  completed gates are green, owner waits amber, failed/stopped gates red, and pending,
+  cancelled/unconfirmed states gray. Text/icons carry the same meaning. Animation
+  stops when work pauses, finishes, fails, is cancelled or becomes unconfirmed; hidden
+  panels do not animate. Reduced-motion preferences disable nonessential motion, and
+  a pause-motion control leaves processing and progress updates untouched. Activity
+  motion never simulates a completion percentage, token count or elapsed-time estimate.
 
 ## Regression scenarios
 
@@ -222,6 +242,9 @@ provider, cloud, approval, cancellation, repository or merge operations.
 - REG-009: Preview isolation, CSRF, session/secret boundaries and protected tests remain intact.
 - REG-010: Desktop/mobile/keyboard coverage exercises guidance, progress, recovery and
   a complete result handoff. The original home and approved Windows screenshot are unchanged.
+- REG-011: In-progress motion/color matches the server stage. Waiting/failure/stale and
+  terminal states stay still. Pausing animation does not cancel/submit jobs or alter
+  accounting; reduced-motion mode keeps all status information visible.
 
 ## Files/areas likely affected
 
@@ -289,6 +312,8 @@ NONE.
 - Original functional/visual regression on its existing Windows platform with unchanged baseline.
 - UI screenshots of start, approval, active progress, blocked/revision, usage uncertainty,
   ready and merged/baseline states; screenshots are review evidence, not promoted goldens.
+- Browser evidence verifies animation in an active state, stillness after a stage change,
+  pause/resume motion behavior, and reduced-motion rendering in both theme appearances.
 - Deterministic recovery integration tests demonstrating stale/duplicate/cross-owner rejection
   and unchanged publication/accounting gates; no paid model calls in CI.
 - A readable state map and staged test evidence in the documentation.
@@ -311,5 +336,6 @@ NONE.
 
 ## Human visual approval
 
-PENDING. The owner will review the interactive concept, select the layout and approve
-this contract or request revisions. No visual-baseline files are authorized for promotion.
+Guided workspace concept endorsed by the owner on 2026-10-02, with the requested
+color/motion refinement incorporated. Approval of the complete implementation contract
+is still pending. No visual-baseline files are authorized for promotion.
