@@ -107,6 +107,39 @@ test('new-project execution pauses until selected-repository access is granted',
     assert.equal(provisions, 2, 'idempotent repository creation is retried after access confirmation');
   } finally { await store.pool.end(); }
 });
+test('new-project release review retries exact files and a verified failed run can be replayed safely', async () => {
+  const store = await database();
+  try {
+    let provisions = 0, publishes = 0, reviewCalls = 0, currentSha = 'initial';
+    const github = { dispatch: async () => {}, createRepository: async () => { provisions++ }, currentSha: async () => currentSha,
+      snapshot: async () => ({ files: {}, sha: 'initial', branch: 'main', omitted: [] }),
+      publish: async (_repository, _run, _snapshot, _files, changed) => { publishes++; return { sha: 'head', url: 'https://github.com/owner/app/pull/1', changed } } };
+    const artifacts = new Artifacts(store, {}), service = new FactoryService({ store, github, artifacts, owner: 'owner' });
+    const provider = { json: async (_run, stage, _instruction, input) => {
+      if (stage === 'planner') return { title: 'Build an app', profile: 'STANDARD', baseSha: 'new', files: ['src/App.jsx'], infrastructure: [], criteria: ['The app renders'], milestones: ['Build the app'], risks: [], reasons: ['New application'] };
+      if (stage === 'builder') return { files: { 'src/App.jsx': "import React from 'react'; export default () => <main>App</main>" } };
+      if (stage === 'qa') return { verdict: 'PASS', criteria: ['The app renders'], findings: [] };
+      if (stage === 'reviewer') {
+        reviewCalls++;
+        return { verdict: 'SAFE_TO_REVIEW', files_to_commit: reviewCalls <= 2 ? input.expectedFilesToCommit.slice(1) : input.expectedFilesToCommit, risks: [] };
+      }
+      throw new Error(`Unexpected stage ${stage}`);
+    } };
+    const engine = new Engine({ store, github, artifacts, provider, owner: 'owner', sandbox: { verify: async () => ({ ...verification(), lockfile: '{}' }) } });
+    await service.create({ name: 'app', request: 'Build an app', visibility: 'private' });
+    let failed = (await store.list('runs', 'owner'))[0]; await engine.execute(failed.id);
+    failed = await store.get('runs', failed.id, 'owner'); await service.approve(failed.id, failed.planHash); await engine.execute(failed.id);
+    failed = await store.get('runs', failed.id, 'owner');
+    assert.equal(failed.status, 'failed'); assert.equal(failed.error, 'Release review did not approve the exact file set.');
+    assert.equal(failed.reviewAttempts.length, 2); assert.equal(publishes, 0);
+    currentSha = 'changed'; await assert.rejects(service.retryFailedCreate(failed.id), /Repository changed/); currentSha = 'initial';
+    const retry = await service.retryFailedCreate(failed.id); await engine.execute(retry.id);
+    const final = await store.get('runs', retry.id, 'owner');
+    assert.equal(final.status, 'awaiting_ci', final.error); assert.equal(final.retryOf, failed.id);
+    assert.equal(final.reviewAttempts.length, 1); assert.equal(publishes, 1); assert.equal(provisions, 2);
+    assert.deepEqual(final.review.files_to_commit.slice().sort(), final.pr.changed.slice().sort());
+  } finally { await store.pool.end(); }
+});
 test('cross-project artifact requests are denied', async () => {
   const store = await database();
   try { const artifacts = new Artifacts(store, {}); const a = await artifacts.put('owner', { id: id(), projectId: 'private' }, 'report', Buffer.from('private')); await assert.rejects(artifacts.get('other', a.id)); }

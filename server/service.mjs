@@ -76,6 +76,26 @@ export class FactoryService {
     await this.store.audit(this.owner, 'repository.access_confirmed', { runId, repository: project.repository });
     return { runId };
   }
+  async retryFailedCreate(runId) {
+    const previous = await this.store.get('runs', runId, this.owner);
+    invariant(previous.kind === 'create' && previous.action === 'execute' && previous.status === 'failed' && previous.stage === 'release_review', 'Only a failed new-project release review can be retried.', 409);
+    invariant(previous.plan && previous.planHash === previous.approvedHash && hash(previous.plan) === previous.approvedHash, 'The approved plan revision is no longer valid.', 409);
+    invariant(previous.verification?.passed && previous.qa?.verdict === 'PASS' && !previous.pr, 'The failed run does not have the verified pre-publication state required for retry.', 409);
+    const project = await this.store.get('projects', previous.projectId, this.owner);
+    invariant(project.type === 'new', 'Only new projects can use this retry path.', 409);
+    invariant(previous.provisionedBaseSha && await this.github.currentSha(project.repository, previous.branch) === previous.provisionedBaseSha, 'Repository changed after the failed run; create a new plan.', 409);
+    const snapshot = await this.store.get('snapshots', previous.id, this.owner);
+    const now = new Date().toISOString();
+    const run = { id: id(), projectId: previous.projectId, kind: previous.kind, action: 'execute', request: previous.request,
+      status: 'queued', stage: 'retry_queued', branch: previous.branch, plan: previous.plan, planHash: previous.planHash,
+      approvedHash: previous.approvedHash, approvedAt: previous.approvedAt, limits: { ...previous.limits }, retryOf: previous.id, createdAt: now };
+    await this.store.transaction(async tx => {
+      await tx.put('snapshots', { ...snapshot, id: run.id }, this.owner);
+      await tx.put('runs', run, this.owner);
+      await tx.audit(this.owner, 'run.retried', { runId: run.id, retryOf: previous.id, reason: 'release_review' });
+    });
+    return run;
+  }
   async check(runId) {
     const run = await this.store.get('runs', runId, this.owner);
     invariant(run.pr, 'No pull request exists.', 409);

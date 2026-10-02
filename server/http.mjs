@@ -67,7 +67,7 @@ export function createHandler({ service, auth, config, store, artifacts, dist = 
           if (action === 'refresh' && req.method === 'POST') { await service.github.authorized(project.repository, session.token); return json(202, await service.queue(project, 'baseline')); }
           if (['knowledge', 'messages'].includes(action) && req.method === 'GET') return json(200, (await store.list(action, session.owner)).filter(r => r.projectId === projectId));
         }
-        const runMatch = /^\/api\/runs\/([a-f0-9-]+)\/(approve|cancel|dispatch|resume|checks)$/.exec(route);
+        const runMatch = /^\/api\/runs\/([a-f0-9-]+)\/(approve|cancel|dispatch|resume|retry|checks)$/.exec(route);
         if (runMatch && req.method === 'POST') {
           const [, runId, action] = runMatch;
           await store.get('runs', runId, session.owner);
@@ -75,6 +75,7 @@ export function createHandler({ service, auth, config, store, artifacts, dist = 
           if (action === 'cancel') await service.cancel(runId);
           if (action === 'dispatch') await service.dispatch(runId);
           if (action === 'resume') { await service.resumeRepositoryAccess(runId, session.token); await service.dispatch(runId); }
+          if (action === 'retry') { const retry = await service.retryFailedCreate(runId); await service.dispatch(retry.id); return json(202, retry); }
           if (action === 'checks') return json(200, await service.check(runId));
           return json(200, { ok: true });
         }

@@ -18,6 +18,12 @@ const plan = { title: 'Add a quick note action', profile: 'STANDARD', baseSha: '
 const run = { id: id(), projectId: project.id, kind: 'enhancement', status: 'awaiting_approval', plan, planHash: hash(plan), limits: defaultLimits, createdAt: new Date().toISOString(), branch: 'main' };
 const preview = await artifacts.put(owner, run, 'preview.json', Buffer.from(JSON.stringify({ 'dist/index.html': Buffer.from('<h1>Working preview</h1><script>try { parent.document.body.textContent="ESCAPED" } catch { document.body.dataset.isolated="true" }</script>').toString('base64') })), 'application/json');
 run.artifacts = [preview]; await store.put('runs', run, owner);
+const createProject = { id: id(), name: 'Launch App', repository: 'factory-test-owner/launch-app', status: 'planning', type: 'new', branch: 'main', requiredChecks: ['playwright'] };
+await store.put('projects', createProject, owner);
+const createPlan = { title: 'Build a launch checklist', profile: 'STANDARD', baseSha: 'new', files: ['src/App.jsx'], infrastructure: [], criteria: ['The checklist renders.'], milestones: ['Build and test the checklist'], risks: [], reasons: ['New application'] };
+const failedCreate = { id: id(), projectId: createProject.id, kind: 'create', action: 'execute', status: 'failed', stage: 'release_review', request: 'Build a launch checklist', branch: 'main', plan: createPlan, planHash: hash(createPlan), approvedHash: hash(createPlan), approvedAt: new Date().toISOString(), provisionedBaseSha: 'base', verification: { passed: true, stats: { expected: 2, skipped: 0 } }, qa: { verdict: 'PASS' }, limits: defaultLimits, createdAt: new Date().toISOString(), error: 'Release review did not approve the exact file set.' };
+await store.put('runs', failedCreate, owner);
+await store.put('snapshots', { id: failedCreate.id, sha: 'new', branch: 'main', files: {} }, owner);
 await store.put('usage', { id: id(), runId: run.id, projectId: project.id, stage: 'planner', requestedModel: 'openrouter/free', totalTokens: 1800, inputTokens: 1400, outputTokens: 400, cachedTokens: 0, reasoningTokens: null, costUsd: 0, elapsedMs: 1600, status: 'completed' }, owner);
 await store.put('knowledge', { id: project.id, projectId: project.id, sha: 'base', documents: [{ path: 'docs/DECISIONS.md', content: 'Keep notes local until sync is approved.' }], inferred: false }, owner);
 const auth = { session: async req => {

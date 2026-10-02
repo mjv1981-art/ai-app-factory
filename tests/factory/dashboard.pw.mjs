@@ -36,6 +36,13 @@ test('approval transitions persisted run and cancellation survives reload', asyn
   await page.reload();
   await expect(page.getByText('cancelled', { exact: true })).toBeVisible();
 });
+test('verified new-project release-review failure can retry the approved run', async ({ page }) => {
+  await page.goto('/factory');
+  await page.getByRole('button', { name: /Launch App/ }).click();
+  await expect(page.getByText('Release review did not approve the exact file set.')).toBeVisible();
+  await page.getByRole('button', { name: 'Retry approved run' }).click();
+  await expect(page.getByText('retry queued · STANDARD', { exact: true })).toBeVisible();
+});
 test('preview cannot reach the parent control application', async ({ page }) => {
   await page.goto('/factory');
   await page.getByRole('button', { name: /Orbital Notes/ }).click();
