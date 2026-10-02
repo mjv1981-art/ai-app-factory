@@ -2,6 +2,15 @@ import { invariant } from './policy.mjs';
 import { defaultLimits, reservation, usageFrom } from './usage.mjs';
 import fs from 'node:fs/promises';
 
+function validShape(stage, value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (stage === 'planner') return typeof value.title === 'string' && Array.isArray(value.files) && Array.isArray(value.criteria) && Array.isArray(value.milestones);
+  if (stage === 'builder' || stage === 'repair') return value.files && typeof value.files === 'object' && !Array.isArray(value.files);
+  if (stage === 'qa') return ['PASS', 'FAIL'].includes(value.verdict) && Array.isArray(value.findings) && Array.isArray(value.criteria);
+  if (stage === 'reviewer') return ['SAFE_TO_REVIEW', 'STOP'].includes(value.verdict) && Array.isArray(value.files_to_commit) && Array.isArray(value.risks);
+  return true;
+}
+
 export class OpenRouter {
   constructor({ store, owner, key, model = 'openrouter/free', fetcher = fetch }) { Object.assign(this, { store, owner, key, model, fetcher }); }
   async json(run, stage, instruction, input) {
@@ -43,11 +52,18 @@ export class OpenRouter {
         await this.store.put('usage', { ...entry, ...usageFrom(data), finishReason: data.choices?.[0]?.finish_reason || null, status: 'completed', elapsedMs: Date.now() - started }, this.owner);
         let content = data.choices?.[0]?.message?.content;
         if (Array.isArray(content)) content = content.map(p => p.text || '').join('');
-        try { return JSON.parse(String(content).replace(/^```(?:json)?\s*|\s*```$/g, '')); }
-        catch {
-          if (attempt === 0) { correction = 'Your previous free-model response was not valid complete JSON. Return the same requested result again as one compact JSON object only, with no markdown or explanation, and stay within the output limit.'; continue; }
-          throw Object.assign(new Error('Provider returned invalid JSON twice; usage retained.'), { accounted: true });
+        try {
+          const parsed = JSON.parse(String(content).replace(/^```(?:json)?\s*|\s*```$/g, ''));
+          if (validShape(stage, parsed)) return parsed;
         }
+        catch {
+          // The accounted response may be retried below only because the selected model is verified free.
+        }
+        if (attempt === 0) {
+          correction = `Your previous free-model response was not valid complete ${stage} JSON${data.choices?.[0]?.finish_reason === 'length' ? ' and hit the output limit' : ''}. Return the same requested result again as one much smaller compact JSON object only, with no markdown or explanation. For create mode, include only files you authored or changed and omit unchanged scaffold files.`;
+          continue;
+        }
+        throw Object.assign(new Error('Provider returned invalid structured JSON twice; usage retained.'), { accounted: true });
       } catch (error) {
         if (!error.accounted) await this.store.put('usage', { ...entry, status: 'uncertain', elapsedMs: Date.now() - started }, this.owner);
         throw error; // Never retry an ambiguous billed request automatically.
