@@ -171,7 +171,14 @@ export class FactoryService {
     await this.store.updateRun(this.owner, runId, { ci, prState, status, prReadError: ciReadError });
     if (prState.merged) {
       const currentSha = await this.github.currentSha(project.repository, project.branch || 'main');
-      if (!project.baseline?.approved || project.baseline.sha !== currentSha) await this.store.put('projects', { ...project, status: 'baseline_needed', ...(project.baseline ? { baseline: { ...project.baseline, approved: false } } : {}) }, this.owner);
+      // Atomically invalidate only a mismatched baseline in the current row.
+      // Ordinary worker upserts can complete during GitHub reads or afterward;
+      // never write the older project snapshot over that fresh discovery.
+      await this.store.pool.query(`UPDATE factory_records SET
+        data=jsonb_set(CASE WHEN jsonb_typeof(data->'baseline')='object' THEN jsonb_set(data, '{baseline,approved}', 'false'::jsonb) ELSE data END, '{status}', '"baseline_needed"'::jsonb),
+        updated_at=now()
+        WHERE collection='projects' AND id=$1 AND owner=$2
+        AND data#>>'{baseline,sha}' IS DISTINCT FROM $3`, [project.id, this.owner, currentSha]);
     }
     return { ...ci, prState };
   }

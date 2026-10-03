@@ -80,6 +80,46 @@ test('read-only lifecycle checks distinguish merged and closed and reject CI on 
     await assert.rejects(f.service.request(f.project.id, 'Another change'));
   } finally { await f.store.pool.end(); }
 });
+
+test('merged polling preserves concurrent current baseline discovery and requires its explicit approval', async () => {
+  const f = await setup();
+  try {
+    await f.store.updateRun('owner', f.previous.id, { pr: { sha: 'head', number: 1 }, status: 'awaiting_ci' });
+    f.setSha('merged-sha'); f.setState({ state: 'closed', merged: true, headSha: 'head' });
+    const checks = f.github.checks;
+    f.github.checks = async (...args) => {
+      await f.store.put('projects', { ...f.project, status: 'baseline_review', baseline: { ...f.project.baseline, sha: 'merged-sha', approved: false } }, 'owner');
+      return checks(...args);
+    };
+    await f.service.check(f.previous.id);
+    let project = await f.store.get('projects', f.project.id, 'owner');
+    assert.equal(project.status, 'baseline_review'); assert.equal(project.baseline.sha, 'merged-sha'); assert.equal(project.baseline.approved, false);
+    await assert.rejects(f.service.request(project.id, 'Another change'));
+    f.github.checks = checks;
+    // Complete another real discovery immediately before the invalidation write,
+    // beyond the earlier GitHub-read interleaving. Preserve its latest fields.
+    await f.store.put('projects', f.project, 'owner');
+    const query = f.store.pool.query;
+    let completedAtWrite = false;
+    f.store.pool.query = async (sql, args) => {
+      if (sql.startsWith('UPDATE factory_records SET') && sql.includes("collection='projects'")) {
+        f.store.pool.query = query; completedAtWrite = true;
+        await f.store.put('projects', { ...project, name: 'Freshly discovered project' }, 'owner');
+      }
+      return query(sql, args);
+    };
+    await f.service.check(f.previous.id);
+    project = await f.store.get('projects', project.id, 'owner');
+    assert.equal(completedAtWrite, true); assert.equal(project.name, 'Freshly discovered project');
+    assert.equal(project.status, 'baseline_review'); assert.equal(project.baseline.sha, 'merged-sha'); assert.equal(project.baseline.approved, false);
+    await f.service.check(f.previous.id);
+    assert.equal((await f.store.get('projects', project.id, 'owner')).status, 'baseline_review');
+    await f.service.approveBaseline(project.id, 'merged-sha'); await f.service.check(f.previous.id);
+    project = await f.store.get('projects', project.id, 'owner'); assert.equal(project.status, 'ready'); assert.equal(project.baseline.approved, true);
+    f.setSha('later-commit'); await f.service.check(f.previous.id);
+    project = await f.store.get('projects', project.id, 'owner'); assert.equal(project.status, 'baseline_needed'); assert.equal(project.baseline.approved, false);
+  } finally { await f.store.pool.end(); }
+});
 test('stage history is durable, bounded and does not grow on heartbeats or duplicate updates', async () => {
   const f = await setup();
   try {

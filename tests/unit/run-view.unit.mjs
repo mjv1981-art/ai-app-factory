@@ -54,3 +54,13 @@ test('active repair overrides older completed-stage evidence and unsafe diagnost
   assert.equal(runView({ ...run, status: 'ready_for_review', pr: { sha: 'head' }, ci: { passed: true } }, {}, [], now).trail.find(s => s.key === 'build').state, 'unrecorded');
   assert.equal(runView({ ...run, kind: 'baseline', status: 'baseline_review' }, { status: 'baseline_needed', baseline: { passed: true, supported: true } }, [], now).action, 'discover');
 });
+
+test('post-merge prerequisites never mask a queued, active or stale baseline worker', () => {
+  const project = { status: 'baseline_needed', baseline: { passed: true, supported: true, approved: false } };
+  const active = runView({ ...run, kind: 'baseline', stage: 'build_and_playwright' }, project, [], now);
+  assert.equal(active.tone, 'working'); assert.equal(active.responsibility, 'Factory'); assert.equal(active.action, null);
+  assert.equal(active.trail.find(s => s.key === 'tests').state, 'working');
+  assert.equal(runView({ ...run, kind: 'baseline', status: 'queued' }, project, [], now).action, null);
+  const stale = runView({ ...run, kind: 'baseline', stage: 'build_and_playwright' }, project, [], now + 120001);
+  assert.equal(stale.tone, 'neutral'); assert.match(stale.title, /unconfirmed/); assert.equal(stale.action, null);
+});

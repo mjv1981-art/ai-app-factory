@@ -1,6 +1,6 @@
 # CHANGE-005 guided workspace evidence (2026-10-03)
 
-Release state: **M1–M6 REVIEW PASSED — EXACT-COMMIT CI / HOSTED ACCEPTANCE PENDING**.
+Release state: **M1–M6 REVIEW PASSED — INITIAL DEPLOYMENT VERIFIED; HOSTED ACCEPTANCE IN PROGRESS**.
 The owner approved the complete contract at
 `e49d84e61a80662298ffd8972067c48db2d742ac` and authorized independent read-only QA and
 release review. Redesign PR #16 is stacked on the unmerged migration PR #15.
@@ -12,7 +12,7 @@ Neither PR may be merged by the Factory. Galaxy Capital was not changed.
 | --- | --- | --- |
 | ESLint | PASS | Existing configuration unchanged |
 | Production Vite build | PASS | Compiled guided Factory assets |
-| Node unit/integration suite | 47 PASS; 0 skipped | Actual PGlite SQL; mocked GitHub, model and sandbox boundaries |
+| Node unit/integration suite | 49 PASS; 0 skipped | Actual PGlite SQL; mocked GitHub, model and sandbox boundaries |
 | Factory Chromium suite | 18 PASS; 0 skipped | Actual HTTP service/database/browser, fixture authentication and external services |
 | Original counter functional / visual | 2 PASS | Unchanged assertions and Windows golden image; isolated temporary port configuration |
 | Whitespace/scope check | PASS at local checkpoint | All changed paths are explicitly permitted by CHANGE-005 |
@@ -44,12 +44,26 @@ M7 / AC-17 requires the reviewed exact commit on the existing hosted service and
 worker, followed by owner-assisted start, approval, active, stopped/revised/reapproved,
 ready-result and post-merge baseline journeys on designated test projects.
 
-Render was read on 2026-10-03: the existing service remains Free, auto-deploy off and sourced
-from `plan/hosted-factory-migration`. The private worker still pins
-`29c87e1f4dd66167bae02e019d3d439b774013bd`. Neither is running this redesign yet.
-The Render connector and Neon read connection both work. Browser access to Render currently
-requires operator sign-in to select the reviewed redesign branch; its connector has no
-branch-update action. No new service or payment method is requested.
+The initial reviewed redesign at `8e4277606ff9461f20b3db47b3da5232ef404dc6` passed
+[Factory CI](https://github.com/mjv1981-art/ai-app-factory/actions/runs/37070035007) and
+[original Windows QA](https://github.com/mjv1981-art/ai-app-factory/actions/runs/37070092805).
+On 2026-10-03, existing Render Free service deployment `dep-db0b5t6gekts738uhcfg`
+became live from `codex/factory-guided-workspace`; the private worker was pinned to
+that same commit. Auto-deploy remains off. Both Render and Neon connections work.
+The signed-in owner dashboard is genuinely accessible at `/factory`.
+
+Real baseline run `ea423fa5-88d6-4fb0-8179-91b9abdf7e83` on the designated new-app
+test repository passed its build/browser checks and reached `baseline_review`.
+Live testing exposed a post-merge defect: recurring merge reconciliation invalidated
+an unapproved but current discovery, and the prerequisite masked a running worker.
+The follow-up keeps queued/running/stale guidance truthful and atomically invalidates
+only a mismatched baseline in the latest owner-scoped row. It cannot overwrite a
+concurrent worker discovery or approve it. Two additional regression cases cover
+the activity states, both concurrent-write boundaries, repeat polling, explicit
+approval and later repository advancement. Independent QA reran all 49 Node tests;
+the 18 browser tests passed. Exact-commit CI, deployment and hosted confirmation of
+this follow-up remain pending at this source checkpoint. No new resource, paid
+fallback, payment method, secret or schema change was made.
 
 Neon confirms the new-app test project's post-merge discovery reached `baseline_review`
 at `f3b5221936721dfd3c5df5c9cbeb273fc618805b` with approval false. The redesign must show
