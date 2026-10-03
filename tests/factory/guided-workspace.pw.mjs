@@ -63,6 +63,31 @@ test('poll failure retains evidence and makes all activity unconfirmed without r
   await expect(card.getByRole('heading', { name: 'Add a quick note action' })).toBeVisible(); expect(dispatched).toBe(0);
   expect((await (await page.request.get('/__fixture/run/' + run.id, { headers })).json()).error).toBeUndefined();
 });
+for (const trigger of ['poll', 'action']) test('expired sign-in offers reconnection without replay after ' + trigger, async ({ page }) => {
+  const { run, card } = await seed(page, { name: 'expired-sign-in-' + trigger, ...(trigger === 'action' ? { status: 'failed', stage: 'release_review' } : {}) });
+  await expect(card.getByRole('heading', { name: 'Add a quick note action' })).toBeVisible();
+  const usage = await card.getByRole('region', { name: 'Model usage' }).innerText();
+  let replanRequests = 0, dispatchRequests = 0;
+  page.on('request', req => { if (req.url().includes('/replan')) replanRequests++; if (req.url().includes('/dispatch')) dispatchRequests++; });
+  await page.route('**/api/**', route => route.continue({ headers: { ...route.request().headers(), 'x-test-deny': 'true' } }));
+  if (trigger === 'action') {
+    await card.getByLabel('Clarify the outcome').fill('Keep state in the browser.');
+    await card.getByRole('button', { name: 'Create a revised plan' }).click();
+    await expect(card.getByLabel('Clarify the outcome')).toHaveValue('Keep state in the browser.');
+  }
+  await expect(page.getByText('Sign-in expired · Last known state retained')).toBeVisible({ timeout: 10000 });
+  const signIn = page.getByRole('link', { name: 'Sign in with GitHub' });
+  await expect(signIn).toBeVisible(); await expect(signIn).toHaveAttribute('href', '/api/auth/login');
+  await expect(page.getByRole('alert').filter({ has: signIn })).toContainText('no action is automatically retried');
+  await expect(card.locator('.factory-motion')).toHaveCount(0);
+  expect(await card.getByRole('region', { name: 'Model usage' }).innerText()).toBe(usage);
+  await page.unroute('**/api/**');
+  await expect(signIn).toHaveCount(0, { timeout: 10000 });
+  const dashboard = await (await page.request.get('/api/dashboard')).json();
+  expect(dashboard.runs.some(r => r.recoveryOf === run.id)).toBe(false);
+  expect(replanRequests).toBe(trigger === 'action' ? 1 : 0); expect(dispatchRequests).toBe(0);
+});
+
 test('review stop supports clarification, linked revision, fresh approval and original history', async ({ page }, testInfo) => {
   const { run, card } = await seed(page, { name: 'recovery-fixture', status: 'failed', stage: 'release_review' });
   await expect(card.locator('.factory-guide')).toContainText('reviewer did not approve');

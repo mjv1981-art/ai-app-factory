@@ -12,6 +12,7 @@ export default function Factory() {
   const [data, setData] = useState({ projects: [], runs: [], usage: [] })
   const [projectId, setProjectId] = useState(null), [tab, setTab] = useState('Work'), [modal, setModal] = useState(null)
   const [error, setError] = useState(''), [connectionError, setConnectionError] = useState(''), [updatedAt, setUpdatedAt] = useState(null)
+  const [signInRequired, setSignInRequired] = useState(false)
   const [busy, setBusy] = useState({}), actionLocks = useRef(new Set()), refreshLock = useRef(false)
   const [knowledge, setKnowledge] = useState([]), [messages, setMessages] = useState([]), [request, setRequest] = useState('')
   const [paused, setPaused] = useState(() => localStorage.getItem('factory-motion-paused') === 'true')
@@ -22,14 +23,14 @@ export default function Factory() {
   const api = useCallback(async (path, input) => {
     const response = await fetch('/api' + path, { credentials: 'same-origin', ...(input ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': session?.csrf || '' }, body: JSON.stringify(input) } : {}) })
     const result = await response.json()
-    if (!response.ok) throw new Error(result.error || 'Request failed')
+    if (!response.ok) throw Object.assign(new Error(result.error || 'Request failed'), { status: response.status })
     return result
   }, [session?.csrf])
   const refresh = useCallback(async () => {
     if (refreshLock.current) return
     refreshLock.current = true
-    try { const result = await api('/dashboard'); setData(result); setUpdatedAt(result.serverAt || new Date().toISOString()); setConnectionError('') }
-    catch (e) { setConnectionError(e.message); throw e }
+    try { const result = await api('/dashboard'); setData(result); setUpdatedAt(result.serverAt || new Date().toISOString()); setConnectionError(''); setSignInRequired(false) }
+    catch (e) { setConnectionError(e.message); if (e.status === 401) setSignInRequired(true); throw e }
     finally { refreshLock.current = false }
   }, [api])
   useEffect(() => { let alive = true; api('/session').then(s => { if (alive) setSession(s) }).catch(e => { if (alive) setError(e.message) }); return () => { alive = false } }, [api])
@@ -42,13 +43,13 @@ export default function Factory() {
   useEffect(() => {
     if (!projectId) return
     let alive = true
-    Promise.all([api('/projects/' + projectId + '/knowledge'), api('/projects/' + projectId + '/messages')]).then(([k, m]) => { if (alive) { setKnowledge(k); setMessages(m) } }).catch(e => { if (alive) setError(e.message) })
+    Promise.all([api('/projects/' + projectId + '/knowledge'), api('/projects/' + projectId + '/messages')]).then(([k, m]) => { if (alive) { setKnowledge(k); setMessages(m) } }).catch(e => { if (alive) { setError(e.message); if (e.status === 401) setSignInRequired(true) } })
     return () => { alive = false }
   }, [projectId, data.runs, api])
   async function act(key, fn) {
     if (actionLocks.current.has(key)) return
     actionLocks.current.add(key); setBusy(b => ({ ...b, [key]: true })); setError('')
-    try { await fn(); await refresh() } catch (e) { setError(e.message) } finally { actionLocks.current.delete(key); setBusy(b => ({ ...b, [key]: false })) }
+    try { await fn(); await refresh() } catch (e) { setError(e.message); if (e.status === 401) setSignInRequired(true) } finally { actionLocks.current.delete(key); setBusy(b => ({ ...b, [key]: false })) }
   }
   const project = data.projects.find(p => p.id === projectId)
   const runs = data.runs.filter(r => !projectId || r.projectId === projectId).sort((a, b) => priority(a) - priority(b) || new Date(b.createdAt) - new Date(a.createdAt))
@@ -60,7 +61,7 @@ export default function Factory() {
   const fallback = runs.find(r => !isHistorical(r))
   if (project && !current.length && fallback) current.push(fallback)
   const history = runs.filter(r => !current.includes(r))
-  const unconfirmed = !!connectionError || !updatedAt || observedAt - new Date(updatedAt).getTime() > 12000
+  const unconfirmed = signInRequired || !!connectionError || !updatedAt || observedAt - new Date(updatedAt).getTime() > 12000
   const openBaseline = id => { if (projectId === id && tab === 'Work') baselineSection.current?.focus(); else { focusBaseline.current = true; setProjectId(id); setTab('Work') } }
   const workspace = run => <RunWorkspace key={run.id} run={run} project={data.projects.find(p => p.id === run.projectId)} usage={usage} busy={busy} act={act} api={api} motionPaused={paused || hidden} connectionUnconfirmed={unconfirmed} now={observedAt} historicalBaseline={isHistorical(run)} openBaseline={openBaseline} />
   const baselineBusy = selections.get(projectId)?.busy
@@ -81,8 +82,9 @@ export default function Factory() {
     <main id="factory-main" className="factory-main" tabIndex={-1}>
       <header className="factory-topbar"><span>Workspace / {project?.name || 'Overview'}</span><span className="factory-policy">You own the merge</span></header>
       <section className="factory-title"><div><p className="factory-eyebrow">{project ? 'GUIDED PROJECT WORKSPACE' : 'YOUR NEXT STEP, IN VIEW'}</p><h1>{project?.name || 'What will you build next?'}</h1><p>{project ? project.repository : 'Start with an idea, or bring a project. Follow what happens and see when it is your turn.'}</p></div><div className="factory-actions"><button onClick={() => setModal('connect')}>Connect repository</button><button className="factory-primary" onClick={() => setModal('create')}>+ New project</button></div></section>
-      <div className="factory-connection"><span>{connectionError ? 'Connection interrupted · Last known state retained' : updatedAt ? 'Updated ' + new Date(updatedAt).toLocaleTimeString() + ' · Refreshes every 4 seconds' : 'Connecting to your workspace…'}</span><button className="factory-link" aria-pressed={paused} onClick={() => { const next = !paused; setPaused(next); localStorage.setItem('factory-motion-paused', String(next)) }}>{paused ? 'Resume motion' : 'Pause motion'}</button></div>
-      {connectionError && <div role="alert" className="factory-notice">{connectionError} · Activity cannot currently be confirmed. Background work continues; refreshing does not replay it.</div>}
+      <div className="factory-connection"><span>{signInRequired ? 'Sign-in expired · Last known state retained' : connectionError ? 'Connection interrupted · Last known state retained' : updatedAt ? 'Updated ' + new Date(updatedAt).toLocaleTimeString() + ' · Refreshes every 4 seconds' : 'Connecting to your workspace…'}</span><button className="factory-link" aria-pressed={paused} onClick={() => { const next = !paused; setPaused(next); localStorage.setItem('factory-motion-paused', String(next)) }}>{paused ? 'Resume motion' : 'Pause motion'}</button></div>
+      {signInRequired && <div role="alert" className="factory-notice"><p>Your sign-in has expired. Sign in again to continue. Background work continues; no action is automatically retried.</p><a className="factory-primary" href="/api/auth/login">Sign in with GitHub ↗</a></div>}
+      {connectionError && !signInRequired && <div role="alert" className="factory-notice">{connectionError} · Activity cannot currently be confirmed. Background work continues; refreshing does not replay it.</div>}
       {error && <div role="alert" className="factory-error">{error}<button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
       <section className="factory-metrics" aria-label="Workspace overview"><Metric title="Needs your attention" value={current.filter(r => ['awaiting_approval', 'awaiting_repository_access', 'failed', 'baseline_review'].includes(r.status)).length} note="Decisions and stopped work" /><Metric title="Worker runs" value={runs.filter(r => ['running', 'queued'].includes(r.status)).length} note="Queued and running · Check freshness below" /><Metric title="Reported tokens" value={format(summary.reported)} note={summary.unknown + ' attempt(s) with pending / unknown usage'} /><Metric title="Known model cost" value={'$' + summary.knownCost.toFixed(4)} note={summary.unknownCost + ' unknown · Hosting tracked separately'} /></section>
       <nav className="factory-tabs" aria-label="Workspace sections">{['Work', 'Usage', 'Knowledge'].map(t => <button key={t} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>{t}</button>)}</nav>

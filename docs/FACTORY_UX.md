@@ -56,6 +56,13 @@ Refresh remains every four seconds. The last successful server update and worker
 are shown separately. The heartbeat freshness window is two minutes. There is no duration
 estimate or token stream: provider-reported totals arrive after each model call.
 
+A server response requiring sign-in shows **Sign-in expired** and a visible **Sign in
+with GitHub** link in the workspace. Last known evidence and unsubmitted fields remain
+on the page; activity is unconfirmed and motion stops. Neither signing in nor later
+successful polling automatically retries an approval, revision or other failed action.
+Navigation through GitHub sign-in reloads the page, so unsubmitted fields should be copied
+before following the link. Authentication and session expiry rules are unchanged.
+
 The allowance meter separates reported tokens, pending reservations and uncertain usage.
 Cached/reasoning token subsets are not added to totals. Known cost and unknown cost remain
 separate; hosting billing is outside this view. Per-attempt usage stays on the Usage tab.

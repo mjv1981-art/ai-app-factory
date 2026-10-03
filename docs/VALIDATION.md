@@ -13,15 +13,16 @@ Neither PR may be merged by the Factory. Galaxy Capital was not changed.
 | ESLint | PASS | Existing configuration unchanged |
 | Production Vite build | PASS | Compiled guided Factory assets |
 | Node unit/integration suite | 50 PASS; 0 skipped | Actual PGlite SQL; mocked GitHub, model and sandbox boundaries |
-| Factory Chromium suite | 20 PASS; 0 skipped | Actual HTTP service/database/browser, fixture authentication and external services |
+| Factory Chromium suite | 22 PASS; 0 skipped | Actual HTTP service/database/browser, fixture authentication and external services |
 | Original counter functional / visual | 2 PASS | Unchanged assertions and Windows golden image; isolated temporary port configuration |
 | Whitespace/scope check | PASS at local checkpoint | All changed paths are explicitly permitted by CHANGE-005 |
 
-Browser coverage preserves all seven original Factory journeys and adds thirteen for fresh
+Browser coverage preserves all seven original Factory journeys and adds fifteen for fresh
 animation, motion pause, reduced motion, failed polling, review-stop clarification and
 fresh reapproval, uncertain usage/stale worker refusal, exact-profile stages, merged/closed
 handoffs, legacy diagnostic rendering, scoped feedback, keyboard controls, and single
-baseline approval with recorded or legacy source provenance. Both themes
+baseline approval with recorded or legacy source provenance, and expired sign-in during
+polling or a submitted action. Both themes
 pass at 320, 390, 736 and 1024 CSS pixels. Screenshots are review evidence, not golden promotions.
 
 Recovery coverage includes concurrent idempotency, owner/revision/access/current-base
@@ -85,8 +86,27 @@ approval stage. Added Node/browser regressions cover these boundaries and retain
 Independent QA passed the affected 15 Node cases and both added Chromium journeys;
 release review approved the ten authorized paths, conditional on the full browser pass.
 The complete 50 Node and 20 browser checks, lint/build and whitespace checks passed.
-Exact-commit CI and deployment of this correction remain pending at this source checkpoint;
-owner approval and revised-run acceptance remain pending.
+Approval correction `e446d0da0687c2fd180a034be1120042fc2e33eb` passed
+[Factory CI](https://github.com/mjv1981-art/ai-app-factory/actions/runs/37110436328) and
+[unchanged Windows QA](https://github.com/mjv1981-art/ai-app-factory/actions/runs/37110452678).
+Render Free deployment `dep-db0c021srm7s73eungs0` served that exact commit, with matching
+private-worker pin. Authenticated live inspection confirmed one approval button,
+focused navigation and three older read-only baseline review records with retained artifacts.
+No new private-worker execution is claimed for this presentation correction.
+
+The next owner report exposed missing reconnection on expired sign-in: the live workspace
+displayed "Sign in to continue" without a login action. A localized UI correction carries
+401 status to existing asynchronous error handlers, presents the existing GitHub login
+route as a visible action and marks activity unconfirmed while retaining current evidence.
+It changes no authentication, session expiry or CSRF rule. Two browser regressions use the
+real fixture's denied-auth path for polling/action failure and verify the login link,
+retained data/fields, no motion and no mutation replay after successful polling resumes.
+Final local checks passed: 50 Node and 22 Chromium tests, lint, production build and
+whitespace. Both independent reviewers reran lint after moving state updates out of
+the API callback; no rule was disabled. Independent QA returned PASS after rerunning both
+new browser journeys; release review returned SAFE_TO_REVIEW for the four authorized files.
+Exact-commit CI and correction deployment remain pending at this source checkpoint.
+Hosted revised-run acceptance remains incomplete.
 
 ## CHANGE-004 historical implementation evidence
 
