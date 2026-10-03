@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test('dashboard renders real API state, usage and durable project decisions', async ({ page }, testInfo) => {
   await page.goto('/factory');
   await expect(page.getByRole('heading', { name: 'What will you build next?' })).toBeVisible();
-  await expect(page.getByText('1,800', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Workspace overview' }).getByText('1,800', { exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('dashboard.png'), fullPage: true });
   await page.getByRole('button', { name: /Orbital Notes/ }).click();
   await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
@@ -34,14 +34,18 @@ test('approval transitions persisted run and cancellation survives reload', asyn
   await expect(page.getByRole('button', { name: 'Retry dispatch' })).toBeVisible();
   await page.getByRole('button', { name: 'Cancel run' }).click();
   await page.reload();
-  await expect(page.getByText('cancelled', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /Orbital Notes/ }).click();
+  await expect(page.locator('.factory-status').filter({ hasText: 'Run cancelled' })).toBeVisible();
 });
 test('verified new-project release-review failure can retry the approved run', async ({ page }) => {
   await page.goto('/factory');
   await page.getByRole('button', { name: /Launch App/ }).click();
   await expect(page.getByText('Release review did not approve the exact file set.')).toBeVisible();
+  await page.getByText('Retry the unchanged approved plan', { exact: true }).click();
   await page.getByRole('button', { name: 'Retry approved run' }).click();
-  await expect(page.getByText('retry queued · STANDARD', { exact: true })).toBeVisible();
+  await expect(page.locator('.factory-run-section .factory-status').filter({ hasText: 'Waiting for a worker' })).toBeVisible();
+  const runs = (await (await page.request.get('/api/dashboard')).json()).runs;
+  expect(runs.some(r => r.stage === 'retry_queued' && r.plan.profile === 'STANDARD' && r.approvedHash === r.planHash)).toBe(true);
 });
 test('preview cannot reach the parent control application', async ({ page }) => {
   await page.goto('/factory');

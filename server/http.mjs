@@ -67,16 +67,23 @@ export function createHandler({ service, auth, config, store, artifacts, dist = 
           if (action === 'refresh' && req.method === 'POST') { await service.github.authorized(project.repository, session.token); return json(202, await service.queue(project, 'baseline')); }
           if (['knowledge', 'messages'].includes(action) && req.method === 'GET') return json(200, (await store.list(action, session.owner)).filter(r => r.projectId === projectId));
         }
-        const runMatch = /^\/api\/runs\/([a-f0-9-]+)\/(approve|cancel|dispatch|resume|retry|checks)$/.exec(route);
+        const eventsMatch = /^\/api\/runs\/([a-f0-9-]+)\/events$/.exec(route);
+        if (eventsMatch && req.method === 'GET') {
+          const run = await store.get('runs', eventsMatch[1], session.owner);
+          return json(200, { events: run.events || [], omittedEvents: run.omittedEvents || 0 });
+        }
+        const runMatch = /^\/api\/runs\/([a-f0-9-]+)\/(approve|cancel|dispatch|resume|retry|checks|replan|publication)$/.exec(route);
         if (runMatch && req.method === 'POST') {
           const [, runId, action] = runMatch;
           await store.get('runs', runId, session.owner);
           if (action === 'approve') { await service.approve(runId, data.revision); await service.dispatch(runId); }
           if (action === 'cancel') await service.cancel(runId);
           if (action === 'dispatch') await service.dispatch(runId);
-          if (action === 'resume') { await service.resumeRepositoryAccess(runId, session.token); await service.dispatch(runId); }
-          if (action === 'retry') { const retry = await service.retryFailedCreate(runId); await service.dispatch(retry.id); return json(202, retry); }
+          if (action === 'resume') { const resumed = await service.resumeRepositoryAccess(runId, session.token); if (resumed.dispatch) await service.dispatch(runId); }
+          if (action === 'retry') { const retry = await service.retryFailedCreate(runId); if (retry.status === 'queued') await service.dispatch(retry.id); return json(202, retry); }
+          if (action === 'replan') { const revised = await service.replan(runId, data, session.token); if (revised.status === 'queued') await service.dispatch(revised.id); return json(202, revised); }
           if (action === 'checks') return json(200, await service.check(runId));
+          if (action === 'publication') return json(200, await service.reconcilePublication(runId, session.token));
           return json(200, { ok: true });
         }
         const previewMatch = /^\/api\/preview\/([a-f0-9-]+)$/.exec(route);
@@ -105,6 +112,6 @@ export function createHandler({ service, auth, config, store, artifacts, dist = 
       safePath(relative);
       let bytes; try { bytes = await fs.readFile(new URL(relative, dist)); } catch { return json(404, { error: 'Not found.' }); }
       res.writeHead(200, { 'Content-Type': mime(relative) }); res.end(bytes);
-    } catch (error) { if (!res.headersSent) json(error.status || 500, { error: error.status ? error.message : 'Operation failed. Check server setup or run evidence.' }); else res.end(); }
+    } catch (error) { if (!res.headersSent) json(error.status || 500, { error: error.status ? error.message : 'Operation failed. Check server setup or run evidence.', code: error.code || 'UNKNOWN' }); else res.end(); }
   };
 }

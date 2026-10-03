@@ -65,3 +65,20 @@ test('accounted invalid structured JSON from a verified-free model gets one boun
     const usage = await store.list('usage', 'owner'); assert.equal(usage.length, 2); assert.ok(usage.every(item => item.status === 'completed' && item.costUsd === 0));
   } finally { await store.pool.end(); }
 });
+test('object-valued QA and reviewer diagnostics fail shape validation after bounded accounted attempts', async () => {
+  const store = await database();
+  try {
+    for (const stage of ['qa', 'reviewer']) {
+      const run = { id: id(), projectId: 'p', status: 'running', createdAt: new Date().toISOString(), limits: defaultLimits };
+      await store.put('runs', run, 'owner'); let calls = 0;
+      const value = stage === 'qa' ? { verdict: 'PASS', criteria: ['Criterion'], findings: [{ reason: 'Unstructured' }] } : { verdict: 'SAFE_TO_REVIEW', files_to_commit: ['src/App.jsx'], risks: [], summary: { reason: 'Unstructured' } };
+      const provider = new OpenRouter({ store, owner: 'owner', key: 'test', fetcher: async url => {
+        if (url.endsWith('/models')) return { ok: true, json: async () => ({ data: [{ id: 'openrouter/free', pricing: { prompt: '0', completion: '0' }, context_length: 200000 }] }) };
+        calls++; return { ok: true, status: 200, json: async () => ({ id: 'attempt-' + calls, choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(value) } }], usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12, cost: 0 } }) };
+      } });
+      await assert.rejects(provider.json(run, stage, 'Return JSON', {}), error => error.code === 'PROVIDER_FORMAT'); assert.equal(calls, 2);
+      const usage = (await store.list('usage', 'owner')).filter(u => u.runId === run.id);
+      assert.equal(usage.length, 2); assert.ok(usage.every(u => u.status === 'completed' && u.totalTokens === 12 && u.costUsd === 0));
+    }
+  } finally { await store.pool.end(); }
+});

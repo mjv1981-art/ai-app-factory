@@ -79,7 +79,6 @@ export class GitHub {
     invariant(await this.currentSha(repo, snapshot.branch) === snapshot.sha, 'Base branch advanced; replan and approve again.', 409);
     const branch = `factory/${run.id}`;
     const existing = await this.request(`/repos/${repo}/pulls?head=${encodeURIComponent(repo.split('/')[0] + ':' + branch)}&state=all`, token);
-    if (existing.length) return { url: existing[0].html_url, sha: existing[0].head.sha, number: existing[0].number };
     const entries = [];
     for (const path of changes) {
       const entry = files[path];
@@ -87,6 +86,11 @@ export class GitHub {
       entries.push({ path, mode: snapshot.files[path]?.mode || '100644', type: 'blob', sha: blob.sha });
     }
     const tree = await this.request(`/repos/${repo}/git/trees`, token, 'POST', { base_tree: snapshot.tree, tree: entries });
+    if (existing.length) {
+      const prior = await this.request(`/repos/${repo}/git/commits/${existing[0].head.sha}`, token);
+      invariant(prior.tree.sha === tree.sha && prior.parents.length === 1 && prior.parents[0].sha === snapshot.sha, 'Existing PR does not match the reviewed candidate; publication needs reconciliation.', 409);
+      return { url: existing[0].html_url, sha: existing[0].head.sha, number: existing[0].number };
+    }
     const commit = await this.request(`/repos/${repo}/git/commits`, token, 'POST', { message: run.plan.title, tree: tree.sha, parents: [snapshot.sha] });
     try { await this.request(`/repos/${repo}/git/refs`, token, 'POST', { ref: `refs/heads/${branch}`, sha: commit.sha }); }
     catch (error) {
@@ -110,6 +114,18 @@ export class GitHub {
     for (const c of checks.check_runs) if (!results.has(c.name)) results.set(c.name, c.status === 'completed' && c.conclusion === 'success');
     for (const s of statuses.statuses) if (!results.has(s.context)) results.set(s.context, s.state === 'success');
     return { sha, required, checks: [...results].map(([name, passed]) => ({ name, passed })), passed: required.length > 0 && required.every(name => results.get(name) === true) };
+  }
+  async pullRequest(repo, number) {
+    invariant(Number.isSafeInteger(number) && number > 0, 'Valid pull request number required.');
+    const token = await this.token(repo, { pull_requests: 'read', metadata: 'read' });
+    const pr = await this.request(`/repos/${repo}/pulls/${number}`, token);
+    return { state: pr.state, merged: pr.merged === true, mergedAt: pr.merged_at, mergeCommitSha: pr.merge_commit_sha, headSha: pr.head.sha, url: pr.html_url, number: pr.number };
+  }
+  async publicationForRun(repo, runId) {
+    invariant(/^[a-f0-9-]{36}$/.test(runId), 'Valid run identity required.');
+    const token = await this.token(repo, { pull_requests: 'read', metadata: 'read' });
+    const prs = await this.request(`/repos/${repo}/pulls?head=${encodeURIComponent(repo.split('/')[0] + ':factory/' + runId)}&state=all`, token);
+    return prs.length ? { number: prs[0].number, url: prs[0].html_url, sha: prs[0].head.sha } : null;
   }
   async dispatch(runId) {
     const repo = repoName(this.config.runnerRepository || '');
