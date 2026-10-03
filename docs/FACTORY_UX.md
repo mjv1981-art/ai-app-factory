@@ -10,6 +10,16 @@ attention ahead of history. Select a project to read its baseline, conversation,
 runs, usage and knowledge. After a human merge, discover and approve the new baseline
 before planning another enhancement.
 
+Baseline approval appears once, in the selected project's **Project baseline** section.
+**Review current baseline** takes you there and focuses the section. Each discovery shows
+its short run ID and timestamp. New discoveries record their source run and commit;
+older records without a source run say **Latest recorded discovery**, selected by completion
+time rather than claiming proof of provenance. Earlier completed discoveries and superseded
+failures stay in read-only run history with their original evidence. Active discoveries
+remain visible and prevent approval until they finish. A recorded project approval does
+not certify a different, active or unattributed discovery's review stage; historical and
+unattributed approval stages remain **Not recorded / unconfirmed**.
+
 Each run shows the objective, current activity, who acts next, the delivery path and one
 primary next action. Status labels are text with icons; action buttons perform operations.
 The guide uses recorded facts and typed diagnostics. It makes no model calls and cannot

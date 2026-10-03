@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runView, usageSummary, diagnosticText } from '../../factory/run-view.mjs';
+import { runView, usageSummary, diagnosticText, baselineSelection, historicalBaseline } from '../../factory/run-view.mjs';
 import { recoveryEligibility } from '../../factory/recovery.mjs';
 
 const now = Date.parse('2026-10-03T10:00:00Z');
@@ -63,4 +63,28 @@ test('post-merge prerequisites never mask a queued, active or stale baseline wor
   assert.equal(runView({ ...run, kind: 'baseline', status: 'queued' }, project, [], now).action, null);
   const stale = runView({ ...run, kind: 'baseline', stage: 'build_and_playwright' }, project, [], now + 120001);
   assert.equal(stale.tone, 'neutral'); assert.match(stale.title, /unconfirmed/); assert.equal(stale.action, null);
+});
+
+test('one baseline source is relevant, while superseded discovery evidence stays historical', () => {
+  const project = { id: 'p', status: 'baseline_review', baseline: { runId: 'source', sha: 'base', passed: true, supported: true, approved: false } };
+  const old = { ...run, id: 'old', projectId: 'p', kind: 'baseline', status: 'baseline_review', createdAt: '2026-10-03T08:00:00Z', workerFinishedAt: '2026-10-03T08:01:00Z' };
+  const source = { ...old, id: 'source', createdAt: '2026-10-03T07:59:00Z', workerFinishedAt: '2026-10-03T08:02:00Z' };
+  const previousFailure = { ...old, id: 'failed', status: 'failed', createdAt: '2026-10-03T07:00:00Z', workerFinishedAt: '2026-10-03T07:01:00Z' };
+  const selection = baselineSelection(project, [old, source, previousFailure]);
+  assert.equal(selection.current.id, source.id); assert.equal(historicalBaseline(source, selection), false);
+  assert.equal(historicalBaseline(old, selection), true); assert.equal(historicalBaseline(previousFailure, selection), true);
+  const view = runView(old, { ...project, baseline: { ...project.baseline, approved: true } }, [], now, false, true);
+  assert.equal(view.action, null); assert.equal(view.trail.find(s => s.key === 'baseline').state, 'unrecorded'); assert.match(view.title, /Earlier/);
+  const legacy = baselineSelection({ ...project, baseline: { ...project.baseline, runId: undefined } }, [old, source]);
+  assert.equal(legacy.current.id, source.id);
+  assert.equal(baselineSelection({ ...project, baseline: { ...project.baseline, runId: 'unavailable' } }, [old, source]).current, undefined);
+  const pending = { ...old, id: 'active', status: 'running', createdAt: '2026-10-03T09:00:00Z' };
+  const refreshed = baselineSelection(project, [old, source, pending]); assert.equal(refreshed.busy, true); assert.equal(historicalBaseline(pending, refreshed), false);
+  const approved = { ...project, baseline: { ...project.baseline, approved: true } };
+  for (const status of ['running', 'queued', 'failed']) {
+    const refresh = runView({ ...pending, status, stage: 'build_and_playwright' }, approved, [], now);
+    assert.equal(refresh.trail.find(s => s.key === 'baseline').state, 'pending', status);
+  }
+  assert.equal(runView(source, approved, [], now).trail.find(s => s.key === 'baseline').state, 'complete');
+  assert.equal(runView(old, approved, [], now).trail.find(s => s.key === 'baseline').state, 'unrecorded');
 });

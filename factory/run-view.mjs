@@ -7,6 +7,19 @@ export function diagnosticText(value) {
   return 'Unstructured recorded diagnostic (unknown provenance): ' + JSON.stringify(value).slice(0, 4000);
 }
 export const activeStates = ['queued', 'running', 'awaiting_approval', 'awaiting_repository_access', 'awaiting_ci'];
+const baselineFinished = run => run.workerFinishedAt || run.events?.findLast(e => e.stage === 'baseline_ready')?.at || run.createdAt;
+export function baselineSelection(project = {}, runs = []) {
+  const attempts = runs.filter(r => r.projectId === project.id && r.kind === 'baseline');
+  const completed = attempts.filter(r => r.status === 'baseline_review');
+  const current = project.baseline?.runId ? completed.find(r => r.id === project.baseline.runId) : completed.sort((a, b) => new Date(baselineFinished(b)) - new Date(baselineFinished(a)) || a.id.localeCompare(b.id))[0];
+  const latest = attempts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt) || a.id.localeCompare(b.id))[0];
+  return { current, latest, busy: attempts.some(r => ['queued', 'running'].includes(r.status)) };
+}
+export function historicalBaseline(run, selection) {
+  if (run.kind !== 'baseline' || ['queued', 'running'].includes(run.status)) return false;
+  if (run.status === 'baseline_review') return run.id !== selection.current?.id;
+  return run.id !== selection.latest?.id || !!(selection.current && new Date(baselineFinished(selection.current)) > new Date(baselineFinished(run)));
+}
 export function usageSummary(entries = []) {
   return {
     reported: entries.reduce((n, u) => n + (u.totalTokens ?? 0), 0),
@@ -40,7 +53,7 @@ const stages = [
   ['qa', 'Independent QA', ['independent_qa']], ['review', 'Release review', ['release_review']],
   ['publish', 'Pull request', ['publishing']], ['ci', 'Required CI', ['human_review']],
 ];
-export function runView(run, project = {}, usage = [], now = Date.now(), connectionUnconfirmed = false) {
+export function runView(run, project = {}, usage = [], now = Date.now(), connectionUnconfirmed = false, historical = false) {
   const entries = usage.filter(u => u.runId === run.id);
   const stale = run.status === 'running' && (!run.heartbeatAt || now - new Date(run.heartbeatAt).getTime() > 120000);
   const uncertain = entries.some(u => u.status === 'uncertain');
@@ -66,15 +79,16 @@ export function runView(run, project = {}, usage = [], now = Date.now(), connect
   if (run.stage === 'publishing' && ['failed', 'cancelled'].includes(run.status) && !run.pr) { tone = 'neutral'; title = 'GitHub publication needs reconciliation'; explanation = reasons.PUBLISH_UNCERTAIN[1]; action = 'publication'; responsibility = 'You'; }
   if (connectionUnconfirmed && run.status === 'running') { tone = 'neutral'; title = 'Activity unconfirmed — connection interrupted'; explanation = 'The last known worker state is retained, but current activity cannot be confirmed. Background work continues; this page does not replay it.'; action = null; }
   if (run.recoveryRunId || run.retryRunId) { tone = 'neutral'; title = 'A follow-up run replaces this plan'; responsibility = 'You'; explanation = 'Open the linked run. The original evidence and usage remain here; this approval can no longer start work.'; action = null; }
+  if (historical && run.kind === 'baseline') { tone = 'neutral'; title = 'Earlier baseline discovery'; responsibility = 'No action required'; explanation = 'This earlier discovery is kept as evidence. Review the current project baseline; this record cannot approve or replace it.'; action = null; }
   const baseline = run.kind === 'baseline';
   const definitions = baseline ? [['inspect', 'Discover baseline', ['baseline_discovery']], ['tests', 'Baseline tests', ['build_and_playwright']], ['baseline', 'Your baseline review', ['baseline_ready']]] : stages.filter(([key]) => key !== 'access' || run.kind === 'create');
   const currentKey = baseline ? run.status === 'baseline_review' ? 'baseline' : definitions.find(([, , names]) => names.includes(run.stage))?.[0] || 'inspect' : run.status === 'awaiting_approval' ? 'approval' : run.status === 'awaiting_repository_access' ? 'access' : run.pr ? 'ci' : run.status === 'queued' && run.action === 'execute' ? run.kind === 'create' ? 'access' : 'build' : definitions.find(([, , names]) => names.includes(run.stage))?.[0] || 'plan';
   const events = run.events || [];
   const trail = definitions.map(([key, name, names], index) => {
     const skipped = run.plan?.profile === 'FAST_EXACT' && ['qa', 'review'].includes(key) || run.plan?.profile === 'FAST' && key === 'review';
-    const completed = key === 'plan' ? !!run.plan : key === 'approval' ? !!run.approvedHash : key === 'tests' ? !!run.verification?.passed : key === 'qa' ? run.qa?.verdict === 'PASS' : key === 'review' ? run.review?.verdict === 'SAFE_TO_REVIEW' && (!!run.reviewPassed || !!run.pr) : key === 'publish' ? !!run.pr : key === 'ci' ? !!run.ci?.passed && !run.prState?.headMismatch : key === 'baseline' ? !!project.baseline?.approved : events.some(e => names.includes(e.fromStage) && e.stage !== e.fromStage && e.status !== 'failed' && e.status !== 'cancelled');
+    const completed = key === 'plan' ? !!run.plan : key === 'approval' ? !!run.approvedHash : key === 'tests' ? !!run.verification?.passed : key === 'qa' ? run.qa?.verdict === 'PASS' : key === 'review' ? run.review?.verdict === 'SAFE_TO_REVIEW' && (!!run.reviewPassed || !!run.pr) : key === 'publish' ? !!run.pr : key === 'ci' ? !!run.ci?.passed && !run.prState?.headMismatch : key === 'baseline' ? run.status === 'baseline_review' && !historical && project.baseline?.runId === run.id && !!project.baseline?.approved : events.some(e => names.includes(e.fromStage) && e.stage !== e.fromStage && e.status !== 'failed' && e.status !== 'cancelled');
     const unrecorded = index < definitions.findIndex(([k]) => k === currentKey) && !events.some(e => names.includes(e.stage) || names.includes(e.fromStage));
-    return { key, name: run.plan?.profile === 'FAST_EXACT' && key === 'build' ? 'Exact edit' : name, state: skipped ? 'skipped' : key === currentKey && run.status === 'running' ? tone : completed ? 'complete' : key === currentKey ? tone : unrecorded ? 'unrecorded' : 'pending' };
+    return { key, name: run.plan?.profile === 'FAST_EXACT' && key === 'build' ? 'Exact edit' : name, state: key === 'baseline' && (historical || run.status === 'baseline_review' && project.baseline?.approved && !completed) ? 'unrecorded' : skipped ? 'skipped' : key === currentKey && run.status === 'running' ? tone : completed ? 'complete' : key === currentKey ? tone : unrecorded ? 'unrecorded' : 'pending' };
   });
   return { tone, title, responsibility, explanation, action, stale, confirmedActive: run.status === 'running' && !stale && !uncertain && !connectionUnconfirmed, trail, recovery: recoveryEligibility(run, entries), summary: usageSummary(entries), repairCount: events.filter(e => e.stage === 'repair' && e.fromStage !== 'repair').length };
 }

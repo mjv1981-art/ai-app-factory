@@ -39,7 +39,14 @@ http.createServer(async (req, res) => {
     await auth.session(req);
     const input = JSON.parse((await body(req)).toString() || '{}');
     let result;
-    if (req.url === '/__fixture/seed') {
+    if (req.url === '/__fixture/baselines') {
+      const p = { ...project, id: id(), name: input.name, repository: owner + '/' + input.name, status: 'baseline_review', baseline: { ...project.baseline, approved: false } };
+      const attempts = [0, 1, 2].map(index => ({ id: id(), projectId: p.id, kind: 'baseline', action: 'baseline', status: index === 0 ? 'failed' : 'baseline_review', stage: index === 0 ? 'build_and_playwright' : 'baseline_ready', createdAt: `2026-10-03T08:0${index}:00Z`, workerFinishedAt: `2026-10-03T08:0${index}:30Z`, limits: defaultLimits, verification: { passed: index !== 0, stats: { expected: index === 0 ? 0 : 3, skipped: 0 } } }));
+      if (!input.legacy) { p.baseline.runId = attempts[2].id; p.baseline.discoveredAt = attempts[2].workerFinishedAt; }
+      await store.put('projects', p, owner);
+      for (const attempt of attempts) await store.put('runs', attempt, owner);
+      result = { project: p, attempts };
+    } else if (req.url === '/__fixture/seed') {
       const p = { ...project, id: id(), name: input.name, repository: owner + '/' + input.name, ...(input.prState?.merged ? { status: 'baseline_needed', baseline: { ...project.baseline, approved: false } } : {}) };
       const scenarioPlan = { ...plan, profile: input.profile || 'STANDARD' };
       const r = { id: id(), projectId: p.id, kind: input.kind || 'enhancement', action: 'execute', request: scenarioPlan.title, plan: scenarioPlan, planHash: hash(scenarioPlan), branch: 'main', limits: defaultLimits, status: input.status || 'running', stage: input.stage || 'builder', heartbeatAt: input.stale ? new Date(Date.now() - 150000).toISOString() : new Date().toISOString(), createdAt: new Date().toISOString() };

@@ -53,8 +53,9 @@ export class Engine {
         if (baseline.supported && baseline.tests.length) baseline.passed = (await this.verify(run, snapshot.files)).passed;
         const docs = context(snapshot.files, 'product architecture decisions regression', []).files.filter(f => /\.md$/.test(f.path));
         await this.store.saveKnowledge(this.owner, { id: project.id, projectId: project.id, sha: snapshot.sha, documents: docs, inferred: true, unknowns: baseline.unknowns });
+        baseline.runId = run.id; baseline.discoveredAt = new Date().toISOString();
         await this.store.put('projects', { ...project, branch: snapshot.branch, status: baseline.supported ? 'baseline_review' : 'unsupported', baseline }, this.owner);
-        await this.store.updateRun(this.owner, runId, { status: 'baseline_review', stage: 'baseline_ready' }); return;
+        await this.store.updateRun(this.owner, runId, { status: 'baseline_review', stage: 'baseline_ready', baselineSha: snapshot.sha }); return;
       }
       if (run.action === 'plan') {
         await this.stage(run, 'planning');

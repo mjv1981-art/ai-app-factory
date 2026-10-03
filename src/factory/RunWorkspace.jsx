@@ -6,16 +6,17 @@ import RecoveryPanel from './RecoveryPanel'
 import UsageMeter from './UsageMeter'
 
 const time = value => value ? new Date(value).toLocaleString() : 'Not recorded'
-export default function RunWorkspace({ run, project, usage, busy, act, api, motionPaused, connectionUnconfirmed, now }) {
+export default function RunWorkspace({ run, project, usage, busy, act, api, motionPaused, connectionUnconfirmed, now, historicalBaseline = false, openBaseline }) {
   const [preview, setPreview] = useState(null)
-  const view = runView(run, project, usage, now, connectionUnconfirmed)
+  const view = runView(run, project, usage, now, connectionUnconfirmed, historicalBaseline)
   const animate = view.confirmedActive && !connectionUnconfirmed
   const entries = usage.filter(u => u.runId === run.id)
   const action = (name, title, primary = false, input = {}) => <button className={primary ? 'factory-primary' : ''} disabled={!!busy[`${run.id}:${name}`]} onClick={() => act(`${run.id}:${name}`, () => api(`/runs/${run.id}/${name}`, input))}>{busy[`${run.id}:${name}`] ? `${title}…` : title}</button>
   return <article id={`run-${run.id}`} className={`factory-card factory-run ${connectionUnconfirmed && view.confirmedActive ? 'neutral' : view.tone} ${motionPaused ? 'factory-motion-paused' : ''}`}>
     <header className="factory-run-header"><div><p className="factory-eyebrow">{project?.name || 'Project'} · {run.kind === 'baseline' ? 'Baseline discovery' : run.kind === 'create' ? 'New project' : 'Enhancement'}</p><h3>{run.plan?.title || run.request || 'Discover project baseline'}</h3></div><span className={`factory-status ${connectionUnconfirmed && view.confirmedActive ? 'neutral' : view.tone}`}><span className={animate ? 'factory-spin factory-motion' : 'factory-status-icon'} aria-hidden="true">{animate ? '' : view.tone === 'complete' ? '✓' : view.tone === 'stopped' ? '!' : view.tone === 'waiting' ? '◷' : '○'}</span>{connectionUnconfirmed && view.confirmedActive ? 'Activity unconfirmed' : view.title}</span></header>
     <div className="factory-run-grid"><div>
-      <p role="status" className="factory-current">{view.title} · {view.responsibility === 'You' ? 'Your turn' : `${view.responsibility} acts next`}</p>
+      <p role="status" className="factory-current">{view.title} · {historicalBaseline ? 'History only' : view.responsibility === 'You' ? 'Your turn' : `${view.responsibility} acts next`}</p>
+      {run.kind === 'baseline' && <p className="factory-note">{historicalBaseline ? 'Historical discovery' : run.status === 'baseline_review' ? project.baseline?.runId === run.id ? 'Current discovery' : 'Latest recorded discovery' : 'Discovery attempt'} <code>{run.id.slice(0, 8)}</code> · {time(run.workerFinishedAt || run.createdAt)}{run.baselineSha && ` · Commit ${run.baselineSha.slice(0, 8)}`}</p>}
       <p className="factory-freshness">Worker: {run.status === 'running' ? connectionUnconfirmed ? 'activity unconfirmed; last known heartbeat ' + time(run.heartbeatAt) : view.stale ? 'heartbeat stale / missing' : `last heartbeat ${time(run.heartbeatAt)}` : 'not currently running'}{run.prState?.checkedAt && ` · GitHub checked ${time(run.prState.checkedAt)}`}</p>
       {run.error && <div className="factory-error"><strong>Original diagnostic</strong><p>{run.error}</p></div>}
       {run.dispatchError && <p className="factory-error">Dispatch unavailable: {run.dispatchError}</p>}
@@ -28,7 +29,7 @@ export default function RunWorkspace({ run, project, usage, busy, act, api, moti
         {view.action === 'checks' && action('checks', 'Check required CI', true)}
         {view.action === 'publication' && action('publication', 'Check GitHub publication', true)}
         {view.action === 'pr' && <a className="factory-primary" href={run.pr.url} target="_blank" rel="noreferrer">Review pull request ↗</a>}
-        {view.action === 'baseline' && <button className="factory-primary" disabled={!!busy[`${project.id}:baseline`]} onClick={() => act(`${project.id}:baseline`, () => api(`/projects/${project.id}/baseline`, { sha: project.baseline.sha }))}>Approve baseline</button>}
+        {view.action === 'baseline' && <button className="factory-primary" onClick={() => openBaseline(project.id)}>Review current baseline</button>}
         {view.action === 'discover' && <button className="factory-primary" disabled={!!busy[`${project.id}:refresh`]} onClick={() => act(`${project.id}:refresh`, () => api(`/projects/${project.id}/refresh`, {}))}>Discover merged baseline</button>}
         {run.status === 'queued' && view.action !== 'dispatch' && action('dispatch', 'Retry dispatch')}
         {activeStates.includes(run.status) && action('cancel', 'Cancel run')}
@@ -37,7 +38,7 @@ export default function RunWorkspace({ run, project, usage, busy, act, api, moti
       {activeStates.includes(run.status) && <p className="factory-note">Closing this page leaves background work running. Cancellation stops later stages; already-sent calls may finish.</p>}
     </div><FactoryGuide view={view} run={run} /></div>
     <UsageMeter entries={entries} limits={run.limits} compact />
-    <RecoveryPanel run={run} view={view} act={act} api={api} busy={busy} />
+    {!historicalBaseline && <RecoveryPanel run={run} view={view} act={act} api={api} busy={busy} />}
     {run.plan && <details open={run.status === 'awaiting_approval'}><summary>Change contract and limits</summary><p>{run.plan.reasons?.join(' ')}</p><ul>{run.plan.criteria.map((c, i) => <li key={i}>{c}</li>)}</ul><p>Files: {run.plan.files.join(', ')}</p><p>Milestones: {run.plan.milestones.join(' → ')}</p>{run.plan.risks.map((r, i) => <p key={i}>{r}</p>)}<p>Profile: {run.plan.profile} · {run.limits.tokens.toLocaleString()} tokens · {run.limits.calls} calls · {run.limits.seconds / 60} minutes · Paid models disabled</p><small>Revision {run.planHash} · Base {run.plan.baseSha}</small></details>}
     {run.verification && <p>Verification: {run.verification.passed ? 'Passed' : 'Failed / insufficient evidence'} · {run.verification.stats?.expected || 0} expected passes · {run.verification.stats?.skipped || 0} skipped</p>}
     <div className="factory-actions">

@@ -6,6 +6,31 @@ async function seed(page, input) {
   const result = await response.json(); await page.goto('/factory'); await page.getByRole('button', { name: new RegExp(input.name) }).click();
   return { ...result, card: page.locator('#run-' + result.run.id) };
 }
+
+for (const legacy of [false, true]) test('baseline approval appears once and older discoveries stay read-only ' + (legacy ? '(legacy records)' : '(recorded source)'), async ({ page }) => {
+  const response = await page.request.post('/__fixture/baselines', { headers, data: { name: legacy ? 'legacy-baselines' : 'recorded-baselines', legacy } });
+  expect(response.ok()).toBe(true);
+  const { project, attempts } = await response.json();
+  await page.goto('/factory');
+  const current = page.locator('#run-' + attempts[2].id), earlier = page.locator('#run-' + attempts[1].id);
+  await expect(current.getByText(legacy ? 'Latest recorded discovery' : 'Current discovery', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Approve baseline', exact: true })).toHaveCount(0);
+  await expect(earlier).toBeHidden();
+  await current.getByRole('button', { name: 'Review current baseline', exact: true }).click();
+  const baseline = page.locator('.factory-baseline');
+  await expect(baseline).toBeFocused(); await expect(baseline).toContainText(attempts[2].id.slice(0, 8));
+  await expect(page.getByRole('button', { name: 'Approve baseline', exact: true })).toHaveCount(1);
+  await expect(page.locator('.factory-run-section .factory-run')).toHaveCount(1);
+  await page.getByText('Run history · 2 runs', { exact: true }).click();
+  await expect(earlier).toContainText('Historical discovery');
+  await expect(earlier.getByRole('button', { name: /Approve baseline|Review current baseline|Discover merged baseline/ })).toHaveCount(0);
+  await baseline.getByRole('button', { name: 'Approve baseline', exact: true }).click();
+  await expect(baseline).toContainText('Accepted baseline');
+  await expect(earlier.locator('.factory-step').filter({ hasText: 'Your baseline review' })).toContainText('Not recorded / unconfirmed');
+  const dashboard = await (await page.request.get('/api/dashboard')).json();
+  expect(dashboard.projects.find(p => p.id === project.id).baseline.approved).toBe(true);
+  expect(dashboard.runs.filter(r => r.projectId === project.id)).toHaveLength(3);
+});
 test('fresh progress has blue motion; pausing leaves state and accounting intact; reduced motion is still', async ({ page }, testInfo) => {
   const { run, card } = await seed(page, { name: 'motion-fixture', pending: true });
   await expect(card.getByText('Actual usage is pending', { exact: false })).toBeVisible();

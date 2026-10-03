@@ -27,6 +27,9 @@ test('baseline → approval → exact enhancement → evidence → PR → CI has
     const engine = new Engine({ store, github, artifacts, owner: 'owner', provider: { json: () => { throw new Error('Exact path must not call a model') } }, sandbox: { verify: async () => { testCalls++; return verification() } } });
     const project = await service.connect({ repository: 'owner/app', requiredChecks: ['playwright'] }, 'session-token');
     let run = (await store.list('runs', 'owner'))[0]; await engine.execute(run.id);
+    const discovered = (await store.get('projects', project.id, 'owner')).baseline;
+    assert.equal(discovered.runId, run.id); assert.equal(discovered.approved, false); assert.ok(discovered.discoveredAt);
+    assert.equal((await store.get('runs', run.id, 'owner')).baselineSha, 'base');
     await service.approveBaseline(project.id, 'base');
     run = await service.request(project.id, 'Replace text "Hello world" with "Welcome aboard"');
     await engine.execute(run.id);

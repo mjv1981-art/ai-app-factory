@@ -12,15 +12,16 @@ Neither PR may be merged by the Factory. Galaxy Capital was not changed.
 | --- | --- | --- |
 | ESLint | PASS | Existing configuration unchanged |
 | Production Vite build | PASS | Compiled guided Factory assets |
-| Node unit/integration suite | 49 PASS; 0 skipped | Actual PGlite SQL; mocked GitHub, model and sandbox boundaries |
-| Factory Chromium suite | 18 PASS; 0 skipped | Actual HTTP service/database/browser, fixture authentication and external services |
+| Node unit/integration suite | 50 PASS; 0 skipped | Actual PGlite SQL; mocked GitHub, model and sandbox boundaries |
+| Factory Chromium suite | 20 PASS; 0 skipped | Actual HTTP service/database/browser, fixture authentication and external services |
 | Original counter functional / visual | 2 PASS | Unchanged assertions and Windows golden image; isolated temporary port configuration |
 | Whitespace/scope check | PASS at local checkpoint | All changed paths are explicitly permitted by CHANGE-005 |
 
-Browser coverage preserves all seven original Factory journeys and adds eleven for fresh
+Browser coverage preserves all seven original Factory journeys and adds thirteen for fresh
 animation, motion pause, reduced motion, failed polling, review-stop clarification and
 fresh reapproval, uncertain usage/stale worker refusal, exact-profile stages, merged/closed
-handoffs, legacy diagnostic rendering, scoped feedback and keyboard controls. Both themes
+handoffs, legacy diagnostic rendering, scoped feedback, keyboard controls, and single
+baseline approval with recorded or legacy source provenance. Both themes
 pass at 320, 390, 736 and 1024 CSS pixels. Screenshots are review evidence, not golden promotions.
 
 Recovery coverage includes concurrent idempotency, owner/revision/access/current-base
@@ -61,13 +62,31 @@ only a mismatched baseline in the latest owner-scoped row. It cannot overwrite a
 concurrent worker discovery or approve it. Two additional regression cases cover
 the activity states, both concurrent-write boundaries, repeat polling, explicit
 approval and later repository advancement. Independent QA reran all 49 Node tests;
-the 18 browser tests passed. Exact-commit CI, deployment and hosted confirmation of
-this follow-up remain pending at this source checkpoint. No new resource, paid
+the 18 browser tests passed. Follow-up commit `94ae30dcd57cb87f4e2de03a26592bc2428de92f`
+passed [Factory CI](https://github.com/mjv1981-art/ai-app-factory/actions/runs/37108221208)
+and [unchanged Windows QA](https://github.com/mjv1981-art/ai-app-factory/actions/runs/37108245298).
+Render Free deploy `dep-db0bdb60tbcc73f3sj4g` and the private worker used that exact commit.
+Real discovery `a0551db1-f11c-4f9f-8cd3-db38a91e8e6b` completed at 08:05 UTC with
+three passing checks and remained in owner review through repeated merge polling.
+No new resource, paid
 fallback, payment method, secret or schema change was made.
 
 Neon confirms the new-app test project's post-merge discovery reached `baseline_review`
 at `f3b5221936721dfd3c5df5c9cbeb273fc618805b` with approval false. The redesign must show
 that explicit owner decision instead of implying baseline acceptance.
+
+The owner's next walkthrough exposed repeated approval buttons on old discoveries.
+The correction keeps one approval in Project baseline, navigates there from the relevant
+run, labels its ID/time, and retains superseded discoveries/failures in read-only history.
+Future baseline JSON records its source run and SHA without a schema change. Legacy
+records select the latest completed discovery and explicitly label that provenance limit.
+An accepted project baseline never completes a different, active or unattributed run's
+approval stage. Added Node/browser regressions cover these boundaries and retained evidence.
+Independent QA passed the affected 15 Node cases and both added Chromium journeys;
+release review approved the ten authorized paths, conditional on the full browser pass.
+The complete 50 Node and 20 browser checks, lint/build and whitespace checks passed.
+Exact-commit CI and deployment of this correction remain pending at this source checkpoint;
+owner approval and revised-run acceptance remain pending.
 
 ## CHANGE-004 historical implementation evidence
 
